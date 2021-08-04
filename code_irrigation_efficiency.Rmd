@@ -1,0 +1,173 @@
+---
+title: "A critique of irrigation efficiency modeling"
+subtitle: "R code"
+author: "Arnald Puy"
+header-includes:
+  - \usepackage[font=footnotesize]{caption}
+  - \usepackage{dirtytalk}
+  - \usepackage{booktabs}
+  - \usepackage{tabulary}
+  - \usepackage{enumitem}
+  - \usepackage{lmodern}
+  - \usepackage[T1]{fontenc}
+  - \usepackage{tikz}
+output:
+  pdf_document:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+    toc_depth: 2
+    keep_tex: true
+  word_document:
+    toc: no
+    toc_depth: '2'
+  html_document:
+    keep_md: true
+link-citations: yes
+fontsize: 11pt
+bibliography: /Users/arnald/Documents/bibtex/LATEX_water_withdrawal.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, dev = "tikz")
+```
+
+\newpage
+
+```{r packages, results="hide", message=FALSE, warning=FALSE}
+
+# Function to read in all required packages in one go:
+loadPackages <- function(x) {
+  for(i in x) {
+    if(!require(i, character.only = TRUE)) {
+      install.packages(i, dependencies = TRUE)
+      library(i, character.only = TRUE)
+    }
+  }
+}
+
+# Load the packages
+loadPackages(c("data.table", "tidyverse", "sensobol", "wesanderson",
+               "cowplot", "parallel", "foreach", "doParallel",
+               "countrycode", "ggridges", "scales"))
+
+# Create custom theme
+theme_AP <- function() {
+  theme_bw() +
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          legend.background = element_rect(fill = "transparent",
+                                           color = NA),
+          legend.key = element_rect(fill = "transparent",
+                                    color = NA),
+          legend.position = "top",
+          strip.background = element_rect(fill = "white"))
+}
+
+# Set checkpoint
+
+dir.create(".checkpoint")
+library("checkpoint")
+
+checkpoint("2021-08-02",
+           R.version ="4.0.3",
+           checkpointLocation = getwd())
+```
+
+\newpage
+
+# Read in data
+
+```{r datasets, cache=TRUE}
+
+# READ IN DATA ---------------------------------------------------------------------
+
+# Rohwer data
+rohwer <- fread("rohwer_data_all.csv")
+rohwer[rohwer == ""] <- NA
+rohwer <- rohwer[, Large_fraction:= Large_fraction / 100]
+
+# Bos data
+bos <- fread("bos_data.csv")
+bos <- bos[, Scale := ifelse(Irrigated_area < 10000, "<10.000 ha", ">10.000 ha")]
+
+# Create data set with E_a values as defined by Rohwer
+bos.rohwer.ea <- data.table("Irrigation" = c("Surface", "Sprinkler"),
+                            "Value" = c(0.6, 0.7),
+                            "variable" = "E_a")
+
+# Create data set with E_c values as defined by Rohwer
+bos.rohwer.ec <- data.table("Irrigation" = c("Surface", "Sprinkler"),
+                            "Value" = c(0.8, 0.95),
+                            "variable" = "E_c")
+
+bos.rohwer.all <- rbind(bos.rohwer.ec, bos.rohwer.ea)
+
+# As a function of scale
+bos.rohwer.mf.ec <- data.table("Scale" = c("<10.000 ha", ">10.000 ha"),
+                               "Value" = c(0.85, 0.59),
+                               "variable" = "E_c")
+
+bos.rohwer.mf.ed <- data.table("Scale" = c("<10.000 ha", ">10.000 ha"),
+                               "Value" = c(0.81, 0.72),
+                               "variable" = "E_d")
+
+bos.rohwer.mf.all <- rbind(bos.rohwer.mf.ec, bos.rohwer.mf.ed)
+```
+
+```{r plot_rohwer, cache=TRUE, dependson="datasets"}
+
+# PLOT -----------------------------------------------------------------------------
+
+# Field and conveyance efficiency ----------------
+
+efficiencies_labeller <- c("E_c" = "$E_c$",
+                           "E_a" = "$E_a$")
+
+a <- bos %>%
+  melt(., measure.vars = c("E_a", "E_c")) %>%
+  ggplot(., aes(value, fill = Irrigation, color = Irrigation)) +
+  geom_histogram(position = "identity", alpha = 0.4, bins = 15) +
+  facet_wrap(~variable, labeller = as_labeller(efficiencies_labeller)) +
+  geom_vline(data = bos.rohwer.all, aes(xintercept = Value,
+                                        color = Irrigation,
+                                        group = variable),
+             lty = 2, 
+             size = 1) +
+  labs(x = "", y = "Count") +
+  theme_AP()
+
+# As a function of scale -----------------------
+
+efficiencies_labeller <- c("E_c" = "$E_c$",
+                           "E_a" = "$E_a$",
+                           "E_d" = "$E_d$")
+
+b <- melt(bos, measure.vars = c("E_c", "E_a", "E_d")) %>%
+  na.omit() %>%
+  ggplot(., aes(value, fill = Scale, color = Scale)) +
+  geom_histogram(bins = 15, position = "identity", alpha = 0.6) +
+  labs(x = "Value", y = "Counts") +
+  scale_fill_manual(values = wes_palette(2, name = "Chevalier1"),
+                    name = "Scale") +
+  facet_wrap(~ variable, labeller = as_labeller(efficiencies_labeller)) +
+  geom_vline(data = bos.rohwer.mf.all, aes(xintercept = Value,
+                                          color = Scale,
+                                          group = variable),
+             lty = 2, 
+             size = 1) +
+  scale_color_manual(values = wes_palette(2, name = "Chevalier1"),
+                    name = "Scale",
+                    labels = c("$<10.000$ ha", "$>10.000$ ha")) +
+  scale_fill_manual(values = wes_palette(2, name = "Chevalier1"),
+                    name = "Scale",
+                    labels = c("$<10.000$ ha", "$>10.000$ ha")) +
+  theme_AP()
+```
+
+```{r plot_merge_rohwer, cache=TRUE, dependson="plot_rohwer", fig.width=4}
+
+# PLOT MERGED ----------------------------------------------------------------------
+
+plot_grid(a, b, ncol = 1, labels = "auto")
+```

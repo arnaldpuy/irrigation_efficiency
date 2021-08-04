@@ -1,0 +1,159 @@
+﻿Country,Region,Code,IFT,Category,Ea,Ec,Large_fraction,Mf,Ep,Actual_Ep,Availability,Consistency,Reliability,Data.Reliability,Assignment
+Afghanistan,SAS,AF,Surface,assigned,0.6,0.7,20,0.9,0.38,0,3,,1,good,
+Albania,EUR,AL,Mixed,assigned,0.68,0.83,20,0.95,0.55,0,3,,1,good,
+Algeria,MEA,AG,Mixed,assigned,0.68,0.83,20,0.95,0.55,0,2,3,3,poor,
+Angola,AFR,AO,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,
+Argentina,LAM,AR,Surface,known,0.6,0.7,20,0.9,0.38,0.39,2,2,,acceptable,Sprinkler
+Armenia,FSU,AM,Surface,known,0.6,0.7,0,1,0.42,0.45,1,3,,poor,Sprinkler
+Australia,PAO,AS,Surface,known,0.6,0.7,20,0.9,0.38,0.48,2,3,,poor,Mixed
+Austria,EUR,AU,Sprinkler,known,0.75,0.95,0,1,0.71,0.63,2,3,,poor,Mixed
+Azerbaijan,FSU,AJ,Surface,known,0.6,0.7,60,0.7,0.29,0.34,1,3,,poor,Surface
+Bangladesh,SAS,BG,Surface,known,0.6,0.7,20,0.9,0.38,0.38,1,2,,acceptable,Surface
+Belgium,EUR,BE,Sprinkler,assigned,0.75,0.95,0,1,0.71,0,3,,3,poor,
+Belize,LAM,BH,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Benin,AFR,BN,Mixed,known,0.68,0.83,0,1,0.57,0.58,1,2,,acceptable,Surface
+Bhutan,SAS,BT,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Bolivia,LAM,BL,Surface,known,0.6,0.7,0,1,0.42,0.42,2,1,,good,Surface
+Bosnia and Herzegovina,EUR,BK,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,1,good,Surface
+Botswana,AFR,BC,Mixed,assigned,0.68,0.83,0,1,0.57,0,1,2,1,good,Surface
+Brazil,LAM,BR,Mixed,known,0.68,0.83,20,0.95,0.55,0.66,2,1,,good,Surface
+Brunei,PAS,BX,Mixed,known,0.68,0.83,0,1,0.57,0.55,1,1,,good,Mixed
+Bulgaria,EUR,BU,Surface,known,0.6,0.7,20,0.9,0.38,0.38,1,3,1,poor,Surface
+Burkina Faso,AFR,UV,Mixed,known,0.68,0.83,0,1,0.57,0.57,2,2,,acceptable,Surface
+Burma,SAS,BM,Surface,known,0.6,0.7,0,1,0.42,0.46,1,1,,good,Surface
+Burundi,AFR,BY,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Byelarus,FSU,BO,Sprinkler,known,0.75,0.95,0,1,0.71,0.71,1,3,,poor,Surface
+Cambodia,CPA,CB,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Cameroon,AFR,CM,Surface,known,0.6,0.7,0,1,0.42,0.48,1,2,,acceptable,Surface
+Canada,NAM,CA,Mixed,assigned,0.68,0.83,20,0.95,0.55,0,3,,1,good,
+Central African Republic,AFR,CT,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,Surface
+Chad,AFR,CD,Surface,known,0.6,0.7,0,1,0.42,0.46,2,1,,good,Surface
+Chile,LAM,CI,Surface,known,0.6,0.7,60,0.7,0.29,0.32,1,1,2,good,
+China,CPA,CH,Surface,known,0.6,0.7,20,0.9,0.38,0.39,1,1,3,good,Surface
+Colombia,LAM,CO,Surface,known,0.6,0.7,20,0.9,0.38,0.4,1,1,,good,Surface
+Congo,AFR,CF,Surface,known,0.6,0.7,0,1,0.42,0.42,2,3,,poor,Surface
+Costa Rica,LAM,CS,Surface,known,0.6,0.7,0,1,0.42,0.49,1,1,,good,Sprinkler
+Croatia,EUR,HR,Sprinkler,assigned,0.75,0.95,0,1,0.71,0,3,,3,poor,
+Cuba,LAM,CU,Mixed,known,0.68,0.83,20,0.95,0.55,0.56,1,2,,acceptable,Surface
+Cyprus,EUR,CY,Micro,known,0.9,0.95,0,1,0.86,0.82,1,3,,poor,Micro
+Czech Republic,EUR,EZ,Sprinkler,known,0.75,0.95,0,1,0.71,0.71,1,3,,poor,Sprinkler
+Denmark,EUR,DA,Sprinkler,known,0.75,0.95,0,1,0.71,0.72,2,3,,poor,Sprinkler
+Djibouti,AFR,DJ,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,Surface
+Dominican Republic,LAM,DR,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Ecuador,LAM,EC,Surface,known,0.6,0.7,20,0.9,0.38,0.38,1,1,1,good,Surface
+Egypt,MEA,EG,Surface,known,0.6,0.7,20,0.9,0.38,0.43,1,3,1,poor,Surface
+El Salvador,LAM,ES,Surface,known,0.6,0.7,0,1,0.42,0.45,1,1,,good,Surface
+Equatorial Guinea,AFR,EK,Surface,assigned,0.6,0.7,0,1,0.57,0,3,3,,poor,Mixed
+Eritrea,AFR,ER,Surface,known,0.6,0.7,0,1,0.42,0.42,2,3,,poor,Surface
+Ethiopia,AFR,ET,Surface,known,0.6,0.7,20,0.9,0.38,0.71,1,1,1,good,Sprinkler
+Finland,EUR,FI,Sprinkler,known,0.75,0.95,0,1,0.71,0.96,2,2,,acceptable,Sprinkler
+France,EUR,FR,Mixed,known,0.68,0.83,20,0.95,0.55,0.57,1,3,,poor,Mixed
+French Guiana,LAM,FG,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,
+Gabon,AFR,GB,Surface,assigned,0.6,0.7,0,1,0.57,0.12,2,3,,poor,
+"Gambia, The",AFR,GA,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Georgia,FSU,GG,Surface,known,0.6,0.7,20,0.9,0.38,0.43,2,3,2,poor,Surface
+Germany,EUR,GM,Sprinkler,known,0.75,0.95,0,1,0.71,0.78,2,2,,acceptable,Mixed
+Ghana,AFR,GH,Surface,known,0.6,0.7,0,1,0.42,0.48,1,1,,good,Surface
+Greece,EUR,GR,Sprinkler,known,0.75,0.95,60,1,0.71,0.72,2,3,,poor,Sprinkler
+Guatemala,LAM,GT,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Guinea,AFR,GV,Surface,known,0.6,0.7,0,1,0.42,0.42,1,3,,poor,Surface
+Guinea-Bissau,AFR,PU,Surface,known,0.6,0.7,0,1,,0.42,2,3,,poor,Surface
+Guyana,LAM,GY,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Haiti,LAM,HA,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Honduras,LAM,HO,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Hungary,EUR,HU,Sprinkler,known,0.75,0.95,20,1,0.71,0.73,2,3,,poor,Sprinkler
+India,SAS,IN,Surface,known,0.6,0.7,20,0.9,0.38,0,2,3,1,poor,Surface
+Indonesia,PAS,ID,Surface,known,0.6,0.7,20,0.9,0.38,0.38,1,1,3,good,Surface
+Iran,MEA,IR,Surface,known,0.6,0.7,20,0.9,0.38,0.38,2,3,3,poor,Sprinkler
+Iraq,MEA,IZ,Mixed,known,0.68,0.83,60,0.85,0.5,0.32,2,3,,poor,Mixed
+Israel,EUR,IS,Micro,known,0.9,0.95,0,1,0.86,0.59,2,2,,acceptable,Micro
+Italy,,IT,Mixed,known,0.68,0.83,60,0.85,0.5,0,1,2,,acceptable,Mixed
+Ivory Coast,AFR,IV,Mixed,known,0.68,0.83,0,1,0.57,0.56,2,2,,acceptable,Surface
+Jamaica,LAM,JM,Surface,known,0.6,0.7,0,1,0.42,0.5,1,1,,good,Surface
+Japan,PAO,JA,Surface,known,0.6,0.7,20,0.9,0.38,0.41,2,1,3,good,Surface
+Jordan,MEA,JO,Micro,known,0.9,0.95,0,1,0.86,0.71,1,2,,acceptable,Sprinkler
+Kazakhstan,FSU,KZ,Mixed,known,0.68,0.83,20,0.95,0.55,0.59,1,3,,poor,Mixed
+Kenya,AFR,KE,Surface,known,0.6,0.7,0,1,0.42,0.49,1,1,,good,Surface
+North Korea,PAS,KN,Surface,assigned,0.6,0.7,20,0.9,0.38,0,3,,1,good,
+South Korea,PAS,KS,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Kuwait,MEA,KU,Mixed,known,0.68,0.83,0,1,0.57,0.56,1,1,,good,Mixed
+Kyrgyzstan,FSU,KG,Surface,known,0.6,0.7,20,0.9,0.38,0.39,1,3,,poor,Surface
+Laos,CPA,LA,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Latvia,EUR,LG,Sprinkler,known,0.75,0.95,0,1,0.71,0.71,2,1,,good,Sprinkler
+Lebanon,MEA,LE,Mixed,known,0.68,0.83,0,1,0.57,0.56,2,1,,good,Micro
+Lesotho,AFR,LT,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,
+Liberia,AFR,LI,Surface,known,0.6,0.7,0,1,0.42,0.4,2,1,,good,Surface
+Libya,MEA,LY,Mixed,assigned,0.68,0.83,0,1,0.57,0,3,,,good,
+Lithuania,EUR,LH,Sprinkler,known,0.75,0.95,0,1,0.71,0.71,1,3,,poor,Sprinkler
+Luxembourg,EUR,LU,Sprinkler,assigned,0.75,0.95,0,1,0.71,0,3,,3,poor,
+Macedonia,EUR,MK,Sprinkler,known,0.75,0.95,0,1,0.71,1.3,2,3,,poor,Sprinkler
+Madagascar,AFR,MA,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Malawi,AFR,MI,Sprinkler,known,0.75,0.95,0,1,0.71,0.68,1,1,,good,Surface
+Malaysia,PAS,MY,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Mali,AFR,ML,Surface,known,0.6,0.7,0,1,0.42,0.42,1,3,,poor,Surface
+Mauritania,AFR,MR,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,
+Mexico,LAM,MX,Surface,known,0.6,0.7,60,0.7,0.29,0.33,1,1,,good,Surface
+Moldova,FSU,MD,Surface,known,0.6,0.7,20,0.9,0.38,0.39,1,3,,poor,Surface
+Mongolia,CPA,MG,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,
+Morocco,MEA,MO,Surface,known,0.6,0.7,0,1,0.42,0.48,1,1,,good,Surface
+Mozambique,AFR,MZ,Mixed,known,0.68,0.83,20,0.95,0.55,0.58,1,3,,poor,Surface
+Namibia,AFR,WA,Mixed,known,0.68,0.83,0,1,0.57,0.62,1,1,,good,Surface
+Nepal,SAS,NP,Surface,assigned,0.6,0.7,20,0.9,0.38,0,3,,1,good,
+Netherlands,EUR,NL,Mixed,known,0.68,0.83,60,0.85,0.5,0.61,2,3,,poor,Mixed
+New Zealand,PAO,NZ,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,1,good,
+Nicaragua,LAM,NU,Surface,known,0.6,0.7,0,1,0.42,0,1,1,2,good,
+Niger,AFR,NG,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Nigeria,AFR,NI,Surface,known,0.6,0.7,20,0.9,0.38,0.31,1,2,,acceptable,Surface
+Norway,EUR,NO,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Oman,MEA,MU,Micro,known,0.9,0.95,0,1,0.86,0,1,1,3,good,
+Pakistan,SAS,PK,Surface,known,0.6,0.7,60,0.7,0.29,0.32,1,2,,acceptable,Surface
+Panama,LAM,PM,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Papua New Guinea,PAS,PP,Surface,known,0.6,0.7,0,1,0.42,0.5,1,1,,good,Surface
+Paraguay,LAM,PA,Surface,known,0.6,0.7,0,1,0.42,0,1,1,2,good,
+Peru,LAM,PE,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Philippines,PAS,RP,Surface,known,0.6,0.7,20,0.9,0.38,0.38,1,1,,good,Surface
+Poland,EUR,PL,Surface,known,0.6,0.7,0,1,0.42,0.42,2,3,,poor,Sprinkler
+Portugal,EUR,PO,Surface,known,0.6,0.7,20,0.9,0.38,0.39,2,2,,acceptable,Surface
+Puerto Rico,NAM,RQ,Surface,assigned,0.6,0.7,0,1,0.57,0.06,2,3,,poor,Mixed
+Qatar,MEA,QA,Mixed,assigned,0.68,0.83,0,1,0.57,0,3,,3,poor,
+Romania,EUR,RO,Sprinkler,known,0.75,0.95,60,1,0.71,0.66,2,1,,good,Sprinkler
+Russia,FSU,RS,Sprinkler,known,0.75,0.95,20,1,0.71,0.7,1,3,,poor,Sprinkler
+Rwanda,AFR,RW,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,
+Saudi Arabia,MEA,SA,Mixed,known,0.68,0.83,20,0.95,0.55,0.6,1,1,,good,Sprinkler
+Senegal,AFR,SG,Surface,known,0.6,0.7,0,1,0.42,0.42,1,2,,acceptable,Surface
+Serbia,EUR,SR,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,1,good,
+Sierra Leone,AFR,SL,Surface,known,0.6,0.7,0,1,0.42,0.42,1,3,,poor,Surface
+Slovakia,EUR,LO,Sprinkler,known,0.75,0.95,20,1,0.71,0.71,2,3,,poor,Sprinkler
+Slovenia,EUR,SI,Mixed,assigned,0.68,0.83,0,1,0.57,0,3,,3,poor,
+Somalia,AFR,SO,Surface,known,0.6,0.7,0,1,0.42,0.42,2,3,,poor,Surface
+South Africa,AFR,SF,Mixed,known,0.68,0.83,0,1,0.57,0.63,1,3,3,poor,Mixed
+Spain,EUR,SP,Mixed,known,0.68,0.83,0,1,0.57,0.63,1,3,,poor,Sprinkler
+Sri Lanka,SAS,CE,Mixed,known,0.68,0.83,20,0.95,0.55,0.38,1,2,,acceptable,Surface
+Sudan,AFR,SU,Surface,known,0.6,0.7,60,0.7,0.29,0.29,1,3,,poor,Surface
+Suriname,LAM,NS,Surface,known,0.6,0.7,0,1,0.42,0.42,1,1,,good,Surface
+Swaziland,AFR,WZ,Mixed,known,0.68,0.83,0,1,0.57,0.57,1,1,,good,Mixed
+Sweden,EUR,SW,Sprinkler,known,0.75,0.95,0,1,0.71,0.71,2,1,,good,Sprinkler
+Switzerland,EUR,SZ,Sprinkler,assigned,0.75,0.95,0,1,0.71,0,3,,3,poor,
+Syria,MEA,SY,Surface,known,0.6,0.7,60,0.7,0.29,0.31,1,3,,poor,Mixed
+Tajikistan,FSU,TI,Surface,known,0.6,0.7,60,0.7,0.29,0.29,1,3,,poor,Surface
+Tanzania,AFR,TZ,Mixed,assigned,0.68,0.83,0,1,0.57,0,3,,1,good,
+Thailand,PAS,TH,Surface,known,0.6,0.7,60,0.7,0.29,0.29,1,1,,good,Surface
+Togo,AFR,TO,Surface,known,0.6,0.7,0,1,0.42,0.29,2,2,,acceptable,Surface
+Trinidad,LAM,TD,Surface,known,0.6,0.7,0,1,0.42,0.49,1,1,,good,Surface
+Tunisia,MEA,TS,Mixed,known,0.68,0.83,0,1,0.57,0.23,1,3,,poor,Surface
+Turkey,EUR,TU,Surface,known,0.6,0.7,20,0.9,0.38,0.39,1,3,,poor,Sprinkler
+Turkmenistan,FSU,TX,Surface,known,0.6,0.7,20,0.9,0.38,0.38,1,3,,poor,Surface
+Uganda,AFR,UG,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,
+Ukraine,FSU,UI,Sprinkler,known,0.75,0.95,60,1,0.71,0.63,1,3,,poor,Surface
+United Arab Emirates,MEA,TC,Micro,known,0.9,0.95,0,1,0.86,0.68,1,1,,good,Mixed
+United Kingdom,EUR,UK,Sprinkler,known,0.75,0.95,0,1,0.71,0.64,2,2,,acceptable,Mixed
+United States,NAM,US,Mixed,known,0.68,0.83,20,0.95,0.55,0.56,1,1,,good,Sprinkler
+Uruguay,LAM,UY,Surface,known,0.6,0.7,0,1,0.42,0.42,1,2,,acceptable,Surface
+Uzbekistan,FSU,UZ,Surface,known,0.6,0.7,60,0.7,0.29,0.29,1,3,,poor,Surface
+Venezuela,LAM,VE,Surface,known,0.6,0.7,60,0.7,0.29,0.39,1,3,,poor,Surface
+Vietnam,CPA,VM,Surface,known,0.6,0.7,60,0.7,0.29,0.29,1,1,,good,Surface
+Western Sahara,AFR,WI,Surface,assigned,0.6,0.7,0,1,0.42,0,3,,2,acceptable,Surface
+Yemen,MEA,YM,Surface,known,0.6,0.7,0,1,0.42,0.42,1,3,,poor,Surface
+Zaire,AFR,CG,Surface,known,0.6,0.7,0,1,0.42,0.4,2,1,,good,Surface
+Zambia,AFR,ZA,Mixed,known,0.68,0.83,0,1,0.57,0.56,1,3,,poor,Surface
+Zimbabwe,AFR,ZI,Mixed,known,0.68,0.83,0,1,0.57,0.64,1,3,,poor,Surface
