@@ -80,7 +80,7 @@ checkpoint("2021-08-02",
 
 ```{r datasets, cache=TRUE}
 
-# READ IN DATA ---------------------------------------------------------------------
+# READ IN DATA --------------------------------------------------------------------
 
 # Rohwer data
 rohwer <- fread("rohwer_data_all.csv")
@@ -134,7 +134,7 @@ a <- bos %>%
                                         group = variable),
              lty = 2, 
              size = 1) +
-  labs(x = "", y = "Count") +
+  labs(x = "", y = "Counts") +
   theme_AP()
 
 # As a function of scale -----------------------
@@ -170,4 +170,307 @@ b <- melt(bos, measure.vars = c("E_c", "E_a", "E_d")) %>%
 # PLOT MERGED ----------------------------------------------------------------------
 
 plot_grid(a, b, ncol = 1, labels = "auto")
+```
+
+# The model
+
+## Function to create sample matrix
+
+```{r matrix_fun, cache=TRUE}
+
+# CREATE FUNCTION TO DESIGN SAMPLE MATRIX ------------------------------------------
+
+params_algo <- list(
+  "Surface" = c("Ea_surf", "Ec_surf", "Proportion_large", "m"),
+  "Sprinkler" = c("Ea_sprinkler", "Ec_sprinkler", "Proportion_large", "m"),
+  "Micro" = c("Ea_micro", "Ec_micro", "Proportion_large", "m"),
+  "Mixed" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler", "Proportion_large", "m")
+)
+
+params_fun <- function(IFT) {
+  out <- params_algo[[IFT]]
+  return(out)
+}
+
+sample_matrix_fun <- function(IFT) {
+  params <- params_fun(IFT = IFT)
+  mat <- sensobol::sobol_matrices(N = N, params = params)
+  out <- list(params, mat)
+  names(out) <- c("parameters", "matrix")
+  return(out)
+}
+```
+
+## Define distributions 
+
+```{r truncated_distr, cache=TRUE}
+
+# DEFINE TRUNCATED DISTRIBUTIONS ---------------------------------------------------
+
+# EA SURFACE ---------
+
+Ea.surface <- bos[Irrigation == "Surface"][, .(min = min(E_a, na.rm = TRUE),
+                                               max = max(E_a, na.rm = TRUE))]
+shape <- 3.502469
+scale <- 0.5444373
+minimum <- Ea.surface$min
+maximum <- Ea.surface$max
+weibull_dist <- sapply(c(minimum, maximum), function(x)
+  pweibull(x, shape = shape, scale = scale))
+
+# EC SURFACE --------
+
+Ec.surface <- bos[Irrigation == "Surface"][, .(min = min(E_c, na.rm = TRUE),
+                                               max = max(E_c, na.rm = TRUE))]
+shape1 <- 5.759496
+shape2 <- 1.403552
+minimum.beta <- Ec.surface$min
+maximum.beta <- Ec.surface$max
+beta_dist <- sapply(c(minimum.beta, maximum.beta), function(x)
+  pbeta(x, shape1 = shape1, shape2 = shape2))
+
+# EA SPRINKLER --------
+
+Ea.sprinkler <- bos[Irrigation == "Sprinkler"][, .(min = min(E_a, na.rm = TRUE),
+                                               max = max(E_a, na.rm = TRUE))]
+shape.spr <- 6.9913711
+scale.spr <- 0.7451178
+minimum.spr <- Ea.sprinkler$min
+maximum.spr <- Ea.sprinkler$max
+weibull_dist_spr <- sapply(c(minimum.spr, maximum.spr), function(x)
+  pweibull(x, shape = shape.spr, scale = scale.spr))
+
+# MANAGEMENT FACTOR (m) -----
+
+shape1.m <- 5.759496
+shape2.m <- 1.403552
+minimum.m <- 0.65
+maximum.m <- 1
+beta_dist.m <- sapply(c(minimum.m, maximum.m), function(x)
+  pbeta(x, shape1 = shape1.m, shape2 = shape2.m))
+
+```
+
+```{r distributions_func, cache=TRUE}
+
+# FUNCTION TO TRANSFORM TO APPROPRIATE DISTRIBUTIONS -------------------------------
+
+distributions_fun <- list(
+
+  # SURFACE IRRIGATION
+  # ---------------------------
+
+  "Ea_surf" = function(x) {
+
+    out <- qunif(x, weibull_dist[[1]], weibull_dist[[2]])
+    out <- qweibull(out, shape, scale)
+  },
+
+  "Ec_surf" = function(x)  {
+
+    out <- qunif(x, beta_dist[[1]], beta_dist[[2]])
+    out <- qbeta(out, shape1, shape2)
+  },
+
+  # SPRINKLER IRRIGATION
+  # --------------------------
+
+  "Ea_sprinkler" = function(x) {
+
+    out <- qunif(x, weibull_dist_spr[[1]], weibull_dist_spr[[2]])
+    out <- qweibull(out, shape.spr, scale.spr)
+  },
+
+  "Ec_sprinkler" = function(x) qunif(x, 0.64, 0.96),
+
+  # MICRO (DRIP) IRRIGATION
+  # --------------------------
+
+  "Ea_micro" = function(x) out <- qunif(x, 0.75, 0.9),
+  "Ec_micro" = function(x) out <- qunif(x, 0.9, 0.95),
+
+  # PROPORTION LARGE
+  # -------------------------
+  "Proportion_large" = function(x) x,
+
+  # MANAGEMENT FACTOR
+  # -------------------------
+  
+  "m" = function(x) {
+    out <- qunif(x, beta_dist.m[[1]], beta_dist.m[[2]])
+    out <- qbeta(out, shape1.m, shape2.m)
+  }
+)
+```
+
+## Uncertainty in the proportion of large-scale irrigated areas
+
+```{r unc_large_fraction, cache=TRUE, dependson="datasets"}
+
+# DEFINE THE UNCERTAINTY IN THE LARGE FRACTION AT THE COUNTRY LEVEL ----------------
+
+rohwer.frac <- rohwer[, .(Country, Large_fraction)]
+rohwer.frac[, `:=` (min = Large_fraction, max = Large_fraction + 0.1)]
+
+countries.list <- split(rohwer.frac, seq(nrow(rohwer.frac)))
+names(countries.list) <- rohwer$Country
+```
+
+## Function to create sample matrix and transfrom to appropriate distributions
+
+```{r distr_final, cache=TRUE, dependson=c("distributions_func", "truncated_distr", "matrix_fun", "unc_large_fraction")}
+
+# FULL ALGORITHM TO CREATE SAMPLE MATRIX -------------------------------------------
+
+full_sample_matrix <- function(IFT, Country) {
+  tmp <- sample_matrix_fun(IFT = IFT)
+  mat <- tmp[["matrix"]]
+  temp <- colnames(mat)
+  mat <- sapply(seq_along(temp), function(x) distributions_fun[[temp[x]]](mat[, x]))
+  colnames(mat) <- temp
+  countries.frac <- countries.list[[Country]]
+  mat[, "Proportion_large"] <- qunif(mat[, "Proportion_large"],
+                                     countries.frac$min, countries.frac$max)
+  out <- list(tmp$parameters, mat)
+  names(out) <- c("parameters", "matrix")
+  return(out)
+}
+```
+
+## Run the model
+
+```{r full_model, cache=TRUE, dependson=c("distr_final", "unc_large_fraction", "distributions_func", "truncated_distr", "matrix_fun")}
+
+# FULL MODEL -----------------------------------------------------------------------
+
+full_model <- function(IFT, Country, sample.size, R) {
+
+  tmp <- full_sample_matrix(IFT = IFT, Country = Country)
+  mat <- tmp$matrix
+
+  if(IFT == "Surface") {
+
+    Mf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
+    y <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf
+
+  } else if(IFT == "Sprinkler") {
+
+    Mf <- mat[, "m"]
+    y <- mat[, "Ea_sprinkler"] * mat[, "Ec_sprinkler"] * Mf
+
+  } else if(IFT == "Mixed") {
+
+    Mf.surf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
+    y.surf <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf.surf
+
+    Mf.sprink <- mat[, "m"]
+    y.sprink <- mat[, "Ea_sprinkler"] * mat[, "Ec_sprinkler"] * Mf.sprink
+
+    y <- 0.5 * y.surf + 0.5 * y.sprink
+
+  } else {
+    Mf <- mat[, "m"]
+    y <- mat[, "Ea_micro"] * mat[, "Ec_micro"] * Mf
+  }
+
+  ind <- sobol_indices(N = sample.size, Y = y, params = tmp$parameters,
+                       boot = TRUE, R = R)
+  out <- list(y, ind)
+  names(out) <- c("output", "indices")
+  return(out)
+}
+```
+
+## Define settings
+
+```{r settings, cache=TRUE }
+
+# DEFINE SETTINGS ------------------------------------------------------------------
+
+N <- 2^13
+R <- 10^2
+```
+
+## Run model 
+
+```{r run_model, cache=TRUE, dependson=c("distr_final", "unc_large_fraction", "distributions_func", "truncated_distr", "matrix_fun", "full_model", "settings")}
+
+# RUN MODEL ------------------------------------------------------------------------
+
+y <- mclapply(1:nrow(rohwer), function(x)
+  full_model(IFT = rohwer[[x, "IFT"]],
+             Country = rohwer[[x, "Country"]],
+             sample.size = N,
+             R = R),
+  mc.cores = detectCores() * 0.75)
+```
+
+## Extract model output
+
+```{r extract_output, cache=TRUE, dependson="run_model"}
+
+# EXTRACT MODEL OUTPUT -------------------------------------------------------------
+
+output <- lapply(y, function(x) x[[1]])
+names(output) <- rohwer$Country
+tmp <- lapply(output, data.table) %>%
+  rbindlist(., idcol = "Country") %>%
+  merge(., rohwer[, .(Country, IFT)], all.x = TRUE)
+
+tmp <- tmp[, Continent:= countrycode(tmp[, Country], origin = "country.name",
+                                     destination = "continent")] %>%
+  .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
+```
+
+## Uncertainty analysis 
+
+```{r unc_analysis, cache=TRUE, dependson="extract_output"}
+
+# PLOT UNCERTAINTY ---------------------------------------------------------------
+
+plot_ggridges <- function(dt, Cont) {
+  pp <- ggplot(dt[Continent == Cont], aes(x = V1, y = fct_reorder(Country, V1),
+                                               fill = IFT), alpha = 0.5) +
+    geom_density_ridges(scale = 2) +
+    labs(x = "Irrigation efficiency", y = "") +
+    facet_wrap(~Continent) +
+    theme_AP() +
+    theme(legend.position = "none")
+  return(pp)
+}
+
+a <- plot_ggridges(dt = tmp, Cont = "Africa") +
+  scale_fill_manual(labels = c("Surface", "Sprinkler", "Mixed"),
+                    values = c("#D8B70A", "#02401B", "#81A88D"),
+                    name = "Irrigation")
+
+b <- plot_ggridges(dt = tmp, Cont = "Americas") +
+  scale_fill_manual(labels = c("Surface", "Mixed"),
+                    values = c("#D8B70A", "#81A88D"),
+                    name = "Irrigation")
+
+c <- plot_ggridges(dt = tmp, Cont = "Asia") +
+  scale_fill_manual(labels = c("Surface", "Micro", "Mixed"),
+                    values = c("#D8B70A", "#A2A475", "#81A88D"),
+                    name = "Irrigation")
+
+d <- plot_ggridges(dt = tmp, Cont = "Europe") +
+  scale_fill_manual(labels = c("Surface", "Sprinkler", "Mixed"),
+                    values = c("#D8B70A", "#02401B", "#81A88D"),
+                    name = "Irrigation")
+
+
+legend.africa <- get_legend(a + theme(legend.position = "top"))
+legend.asia <- get_legend(c + theme(legend.position = "top"))
+```
+
+```{r merge_plot_unc, cache=TRUE, dependson="unc_analysis", fig.height=6, fig.width=6}
+
+# MERGE PLOTS ----------------------------------------------------------------------
+
+bottom <- plot_grid(a, d, ncol = 2)
+plot_grid(legend.africa, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
+
+bottom <- plot_grid(b, c, ncol = 2)
+plot_grid(legend.asia, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
 ```

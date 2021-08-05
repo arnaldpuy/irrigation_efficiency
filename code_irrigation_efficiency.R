@@ -73,6 +73,9 @@ bos.rohwer.mf.ed <- data.table("Scale" = c("<10.000 ha", ">10.000 ha"),
 
 bos.rohwer.mf.all <- rbind(bos.rohwer.mf.ec, bos.rohwer.mf.ed)
 
+# Solley data for USA
+solley <- fread("solley_data.csv")
+solley[, Ep:= consumptive.use / total.withdrawal]
 
 # ROHWER ET AL. ---------------------------------------------------------------
 
@@ -119,16 +122,24 @@ b <- melt(bos, measure.vars = c("E_c", "E_a", "E_d")) %>%
 
 plot_grid(a, b, ncol = 1, labels = "auto")
 
+# SOLLEY DATA FOR USA --------------------------------------------------------------
+
+ggplot(solley, aes(Ep)) +
+  geom_histogram() +
+  geom_vline(xintercept = 0.6, lty = 2) +
+  labs(x = "$E_p$", y = "Counts") +
+  theme_AP()
+
 
 # ROHWER FACTORIAL DESIGN -----------------------------------------------------
 
 N <- 2^13
 
 params_algo <- list(
-  "Surface" = c("Ea_surf", "Ec_surf", "Proportion_large"),
-  "Sprinkler" = c("Ea_sprinkler", "Ec_sprinkler", "Proportion_large"),
-  "Micro" = c("Ea_micro", "Ec_micro", "Proportion_large"),
-  "Mixed" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler", "Proportion_large")
+  "Surface" = c("Ea_surf", "Ec_surf", "Proportion_large", "m"),
+  "Sprinkler" = c("Ea_sprinkler", "Ec_sprinkler", "Proportion_large", "m"),
+  "Micro" = c("Ea_micro", "Ec_micro", "Proportion_large", "m"),
+  "Mixed" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler", "Proportion_large", "m")
 )
 
 params_fun <- function(IFT) {
@@ -143,7 +154,6 @@ sample_matrix_fun <- function(IFT) {
   names(out) <- c("parameters", "matrix")
   return(out)
 }
-
 
 # DEFINE DISTRIBUTIONS ------------------------------------------------
 
@@ -176,6 +186,15 @@ minimum.spr <- Ea.sprinkler$min
 maximum.spr <- Ea.sprinkler$max
 weibull_dist_spr <- sapply(c(minimum.spr, maximum.spr), function(x)
   pweibull(x, shape = shape.spr, scale = scale.spr))
+
+# MANAGEMENT FACTOR (m) -----
+# Truncated Beta for m
+shape1.m <- 5.759496
+shape2.m <- 1.403552
+minimum.m <- 0.65
+maximum.m <- 0.99
+beta_dist.m <- sapply(c(minimum.m, maximum.m), function(x)
+  pbeta(x, shape1 = shape1.m, shape2 = shape2.m))
 
 # FUNCTION TO TRANSFORM TO APPROPRIATE DISTRIBUTIONS -------------------------------
 
@@ -215,8 +234,14 @@ distributions_fun <- list(
 
   # PROPORTION LARGE
   # -------------------------
-  "Proportion_large" = function(x) x
+  "Proportion_large" = function(x) x,
 
+  # MANAGEMENT FACTOR
+  # -------------------------
+  "m" = function(x) {
+    out <- qunif(x, beta_dist.m[[1]], beta_dist.m[[2]])
+    out <- qbeta(out, shape1.m, shape2.m)
+  }
 )
 
 # DEFINE THE UNCERTAINTY IN THE LARGE FRACTION AT THE COUNTRY LEVEL ----------------
@@ -252,33 +277,33 @@ full_model <- function(IFT, Country, sample.size, R) {
 
   if(IFT == "Surface") {
 
-    Mf <- 1 - 0.5 * mat[, "Proportion_large"]
+    Mf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
     y <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf
 
   } else if(IFT == "Sprinkler") {
 
-    Mf <- 1
+    Mf <- mat[, "m"]
     y <- mat[, "Ea_sprinkler"] * mat[, "Ec_sprinkler"] * Mf
 
   } else if(IFT == "Mixed") {
 
-    Mf.surf <- 1 - 0.5 * mat[, "Proportion_large"]
+    Mf.surf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
     y.surf <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf.surf
 
-    Mf.sprink <- 1
+    Mf.sprink <- mat[, "m"]
     y.sprink <- mat[, "Ea_sprinkler"] * mat[, "Ec_sprinkler"] * Mf.sprink
 
     y <- 0.5 * y.surf + 0.5 * y.sprink
 
   } else {
-    Mf <- 1
+    Mf <- mat[, "m"]
     y <- mat[, "Ea_micro"] * mat[, "Ec_micro"] * Mf
   }
 
   ind <- sobol_indices(N = sample.size, Y = y, params = tmp$parameters,
                        boot = TRUE, R = R)
-  out <- list(y, ind)
-  names(out) <- c("output", "indices")
+  out <- list(y, ind, mat[1:(2 * sample.size), ])
+  names(out) <- c("output", "indices", "matrix")
   return(out)
 }
 
@@ -293,7 +318,7 @@ y <- mclapply(1:nrow(rohwer), function(x)
 
 # EXTRACT MODEL OUTPUT -------------------------------------------------------------
 
-output <- lapply(y, function(x) x[[1]])
+output <- lapply(y, function(x) x[["output"]])
 names(output) <- rohwer$Country
 tmp <- lapply(output, data.table) %>%
   rbindlist(., idcol = "Country") %>%
@@ -346,9 +371,23 @@ plot_grid(legend.africa, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
 bottom <- plot_grid(b, c, ncol = 2)
 plot_grid(legend.asia, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
 
+
+# SAMPLE MATRIX DISTRIBUTIONS -----------------------------------------------------
+
+dt.micro <- lapply(y, function(x) x[["matrix"]])[[68]][, 1:2] # Israel for micro
+
+lapply(y, function(x) x[["matrix"]])[[158]] %>% # Retrieve only slot 158
+  cbind(., dt.micro) %>%
+  data.table() %>%
+  melt(., measure.vars = colnames(.)) %>%
+  ggplot(., aes(value)) +
+  geom_histogram() +
+  facet_wrap(~variable) +
+  theme_AP()
+
 # EXTRACT SOBOL' INDICES -----------------------------------------------------------
 
-ind <- lapply(y, function(x) x[[2]]$results)
+ind <- lapply(y, function(x) x[["indices"]]$results)
 names(ind) <- rohwer$Country
 ind <- rbindlist(ind, idcol = "Country")
 
@@ -367,11 +406,8 @@ for(i in names(tmp.ift)) {
 ind.dt <- rbindlist(out, idcol = "IFT") %>%
   .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
 
-ind.dt[, .(mean = mean(original),
-           sd = sd(original),
-           error = qnorm(0.975) * sd / sqrt(.N)), .(IFT, parameters, sensitivity)]
 
-ggplot(., aes(parameters, original, fill = sensitivity)) +
+ggplot(ind.dt, aes(parameters, original, fill = sensitivity)) +
   geom_boxplot(position = position_dodge(0.6)) +
   scale_x_discrete(labels = c("Ea_surf" = "$E_{a_{surface}}$",
                               "Ec_surf" = "$E_{c_{surface}}$",
@@ -379,6 +415,7 @@ ggplot(., aes(parameters, original, fill = sensitivity)) +
                               "Ec_sprinkler" = "$E_{c_{sprinkler}}$",
                               "Ea_micro" = "$E_{a_{micro}}$",
                               "Ec_micro" = "$E_{c_{micro}}$",
-                              "Proportion_large" = "$f_L$")) +
+                              "Proportion_large" = "$f_L$",
+                              "m" = "$m$")) +
   facet_grid(~IFT, space = "free_x", scale = "free_x") +
   theme_AP()
