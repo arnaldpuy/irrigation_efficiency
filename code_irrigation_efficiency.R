@@ -1,5 +1,8 @@
+## ----setup, include=FALSE---------------------------------------------------------------------------------
+knitr::opts_chunk$set(echo = TRUE, dev = "tikz")
 
-# PRELIMINARY STEPS -----------------------------------------------------------
+
+## ----packages, results="hide", message=FALSE, warning=FALSE-----------------------------------------------
 
 # Function to read in all required packages in one go:
 loadPackages <- function(x) {
@@ -14,7 +17,7 @@ loadPackages <- function(x) {
 # Load the packages
 loadPackages(c("data.table", "tidyverse", "sensobol", "wesanderson",
                "cowplot", "parallel", "foreach", "doParallel",
-               "countrycode", "ggridges"))
+               "countrycode", "ggridges", "scales", "overlapping"))
 
 # Create custom theme
 theme_AP <- function() {
@@ -38,17 +41,27 @@ checkpoint("2021-08-02",
            R.version ="4.0.3",
            checkpointLocation = getwd())
 
-# READ IN DATA ----------------------------------------------------------------
+
+## ----datasets, cache=TRUE---------------------------------------------------------------------------------
+
+# READ IN DATA --------------------------------------------------------------------
 
 # Rohwer data
 rohwer <- fread("rohwer_data_all.csv")
 rohwer[rohwer == ""] <- NA
-rohwer[, Large_fraction:= Large_fraction / 100]
+rohwer <- rohwer[, Large_fraction:= Large_fraction / 100]
 
 # Bos data
 bos <- fread("bos_data.csv")
-bos[, Scale := ifelse(Irrigated_area < 10000, "<10.000 ha", ">10.000 ha")]
+bos <- bos[, Scale := ifelse(Irrigated_area < 10000, "<10.000 ha", ">10.000 ha")]
 
+# Solley data (USA)
+usa.dt <- fread("usa_efficiency.csv")
+usa.dt <- usa.dt[, Efficiency:= consumptive.use / total.withdrawal]
+
+# FAO 1997 data (Irrigation potential in Africa)
+fao_dt <- fread("fao_1997.csv")
+fao_dt <- fao_dt[, Efficiency:= Efficiency / 100]
 
 # Create data set with E_a values as defined by Rohwer
 bos.rohwer.ea <- data.table("Irrigation" = c("Surface", "Sprinkler"),
@@ -73,30 +86,32 @@ bos.rohwer.mf.ed <- data.table("Scale" = c("<10.000 ha", ">10.000 ha"),
 
 bos.rohwer.mf.all <- rbind(bos.rohwer.mf.ec, bos.rohwer.mf.ed)
 
-# Solley data for USA
-solley <- fread("solley_data.csv")
-solley[, Ep:= consumptive.use / total.withdrawal]
 
-# ROHWER ET AL. ---------------------------------------------------------------
+## ----plot_rohwer, cache=TRUE, dependson="datasets"--------------------------------------------------------
 
-# Field efficiency -------------------
+# PLOT -----------------------------------------------------------------------------
+
+# Field and conveyance efficiency ----------------
+
 efficiencies_labeller <- c("E_c" = "$E_c$",
                            "E_a" = "$E_a$")
 
 a <- bos %>%
   melt(., measure.vars = c("E_a", "E_c")) %>%
-  ggplot(., aes(value, fill = Irrigation)) +
+  ggplot(., aes(value, fill = Irrigation, color = Irrigation)) +
   geom_histogram(position = "identity", alpha = 0.4, bins = 15) +
   facet_wrap(~variable, labeller = as_labeller(efficiencies_labeller)) +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
   geom_vline(data = bos.rohwer.all, aes(xintercept = Value,
                                         color = Irrigation,
                                         group = variable),
-             lty = 2) +
-  labs(x = "", y = "Count") +
-  theme_AP()
+             lty = 2,
+             size = 1) +
+  labs(x = "", y = "Counts") +
+  theme_AP() +
+  theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
-
-# EFFICIENCIES AS A FUNCTION OF SCALE ----------------------------------------------
+# As a function of scale -----------------------
 
 efficiencies_labeller <- c("E_c" = "$E_c$",
                            "E_a" = "$E_a$",
@@ -106,34 +121,63 @@ b <- melt(bos, measure.vars = c("E_c", "E_a", "E_d")) %>%
   na.omit() %>%
   ggplot(., aes(value, fill = Scale, color = Scale)) +
   geom_histogram(bins = 15, position = "identity", alpha = 0.6) +
-  labs(x = "Value", y = "Counts") +
-  scale_fill_manual(values = wes_palette(2, name = "Chevalier1"),
-                    name = "Scale") +
+  labs(x = "Irrigation efficiency", y = "Counts") +
   facet_wrap(~ variable, labeller = as_labeller(efficiencies_labeller)) +
   geom_vline(data = bos.rohwer.mf.all, aes(xintercept = Value,
                                           color = Scale,
                                           group = variable),
              lty = 2,
              size = 1) +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
   scale_color_manual(values = wes_palette(2, name = "Chevalier1"),
                     name = "Scale",
                     labels = c("$<10.000$ ha", "$>10.000$ ha")) +
-  theme_AP()
+  scale_fill_manual(values = wes_palette(2, name = "Chevalier1"),
+                    name = "Scale",
+                    labels = c("$<10.000$ ha", "$>10.000$ ha")) +
+  theme_AP() +
+  theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
 
-plot_grid(a, b, ncol = 1, labels = "auto")
+bottom <- plot_grid(a, b, ncol = 1, labels = c("c", "d"))
+bottom
 
-# SOLLEY DATA FOR USA --------------------------------------------------------------
 
-ggplot(solley, aes(Ep)) +
+## ----plot_usa_africa, cache=TRUE, dependson="datasets", fig.width=3.5-------------------------------------
+
+# PLOT USA AND AFRICA --------------------------------------------------------------
+
+# USA data
+
+c1 <- ggplot(usa.dt, aes(Efficiency)) +
   geom_histogram() +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
   geom_vline(xintercept = 0.6, lty = 2) +
-  labs(x = "$E_p$", y = "Counts") +
-  theme_AP()
+  labs(x = "", y = "Counts") +
+  theme_AP() +
+  theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+d1 <- ggplot(fao_dt, aes(Efficiency)) +
+  geom_histogram() +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  labs(x = "", y = "") +
+  theme_AP() +
+  theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+
+top <- cowplot::plot_grid(c1, d1, ncol = 2, labels = "auto")
+top
+
+plot_grid(top, bottom, ncol = 1, rel_heights = c(0.3, 0.7))
+
+## ----plot_merge_rohwer, cache=TRUE, dependson=c("plot_rohwer", "plot_usa_africa"), fig.width=3.5, fig.height=4----
+
+# PLOT MERGED ----------------------------------------------------------------------
+
+plot_grid(top, bottom, ncol = 1)
 
 
-# ROHWER FACTORIAL DESIGN -----------------------------------------------------
+## ----matrix_fun, cache=TRUE-------------------------------------------------------------------------------
 
-N <- 2^13
+# CREATE FUNCTION TO DESIGN SAMPLE MATRIX ------------------------------------------
 
 params_algo <- list(
   "Surface" = c("Ea_surf", "Ec_surf", "Proportion_large", "m"),
@@ -155,9 +199,13 @@ sample_matrix_fun <- function(IFT) {
   return(out)
 }
 
-# DEFINE DISTRIBUTIONS ------------------------------------------------
+
+## ----truncated_distr, cache=TRUE--------------------------------------------------------------------------
+
+# DEFINE TRUNCATED DISTRIBUTIONS ---------------------------------------------------
 
 # EA SURFACE ---------
+
 Ea.surface <- bos[Irrigation == "Surface"][, .(min = min(E_a, na.rm = TRUE),
                                                max = max(E_a, na.rm = TRUE))]
 shape <- 3.502469
@@ -167,7 +215,8 @@ maximum <- Ea.surface$max
 weibull_dist <- sapply(c(minimum, maximum), function(x)
   pweibull(x, shape = shape, scale = scale))
 
-#EC SURFACE --------
+# EC SURFACE --------
+
 Ec.surface <- bos[Irrigation == "Surface"][, .(min = min(E_c, na.rm = TRUE),
                                                max = max(E_c, na.rm = TRUE))]
 shape1 <- 5.759496
@@ -177,7 +226,8 @@ maximum.beta <- Ec.surface$max
 beta_dist <- sapply(c(minimum.beta, maximum.beta), function(x)
   pbeta(x, shape1 = shape1, shape2 = shape2))
 
-# EA SPRINKLER ------
+# EA SPRINKLER --------
+
 Ea.sprinkler <- bos[Irrigation == "Sprinkler"][, .(min = min(E_a, na.rm = TRUE),
                                                max = max(E_a, na.rm = TRUE))]
 shape.spr <- 6.9913711
@@ -188,13 +238,17 @@ weibull_dist_spr <- sapply(c(minimum.spr, maximum.spr), function(x)
   pweibull(x, shape = shape.spr, scale = scale.spr))
 
 # MANAGEMENT FACTOR (m) -----
-# Truncated Beta for m
+
 shape1.m <- 5.759496
 shape2.m <- 1.403552
 minimum.m <- 0.65
-maximum.m <- 0.99
+maximum.m <- 1
 beta_dist.m <- sapply(c(minimum.m, maximum.m), function(x)
   pbeta(x, shape1 = shape1.m, shape2 = shape2.m))
+
+
+
+## ----distributions_func, cache=TRUE-----------------------------------------------------------------------
 
 # FUNCTION TO TRANSFORM TO APPROPRIATE DISTRIBUTIONS -------------------------------
 
@@ -229,7 +283,7 @@ distributions_fun <- list(
   # MICRO (DRIP) IRRIGATION
   # --------------------------
 
-  "Ea_micro" = function(x) out <- qunif(x, 0.75, 0.9),
+  "Ea_micro" = function(x) out <- qunif(x, 0.75, 0.95),
   "Ec_micro" = function(x) out <- qunif(x, 0.9, 0.95),
 
   # PROPORTION LARGE
@@ -238,11 +292,15 @@ distributions_fun <- list(
 
   # MANAGEMENT FACTOR
   # -------------------------
+
   "m" = function(x) {
     out <- qunif(x, beta_dist.m[[1]], beta_dist.m[[2]])
     out <- qbeta(out, shape1.m, shape2.m)
   }
 )
+
+
+## ----unc_large_fraction, cache=TRUE, dependson="datasets"-------------------------------------------------
 
 # DEFINE THE UNCERTAINTY IN THE LARGE FRACTION AT THE COUNTRY LEVEL ----------------
 
@@ -251,6 +309,9 @@ rohwer.frac[, `:=` (min = Large_fraction, max = Large_fraction + 0.1)]
 
 countries.list <- split(rohwer.frac, seq(nrow(rohwer.frac)))
 names(countries.list) <- rohwer$Country
+
+
+## ----distr_final, cache=TRUE, dependson=c("distributions_func", "truncated_distr", "matrix_fun", "unc_large_fraction")----
 
 # FULL ALGORITHM TO CREATE SAMPLE MATRIX -------------------------------------------
 
@@ -267,6 +328,9 @@ full_sample_matrix <- function(IFT, Country) {
   names(out) <- c("parameters", "matrix")
   return(out)
 }
+
+
+## ----full_model, cache=TRUE, dependson=c("distr_final", "unc_large_fraction", "distributions_func", "truncated_distr", "matrix_fun")----
 
 # FULL MODEL -----------------------------------------------------------------------
 
@@ -302,31 +366,110 @@ full_model <- function(IFT, Country, sample.size, R) {
 
   ind <- sobol_indices(N = sample.size, Y = y, params = tmp$parameters,
                        boot = TRUE, R = R)
-  out <- list(y, ind, mat[1:(2 * sample.size), ])
-  names(out) <- c("output", "indices", "matrix")
+  out <- list(y, ind)
+  names(out) <- c("output", "indices")
   return(out)
 }
 
-# RUN MODEL ------------------------------------------------------------------------
+
+## ----settings, cache=TRUE---------------------------------------------------------------------------------
+
+# DEFINE SETTINGS ------------------------------------------------------------------
+
+N <- 2^13
+R <- 10^2
+
+
+## ----run_model, cache=TRUE, dependson=c("distr_final", "unc_large_fraction", "distributions_func", "truncated_distr", "matrix_fun", "full_model", "settings")----
+
+# RUN MODEL -------------------------------------------------------------------------
 
 y <- mclapply(1:nrow(rohwer), function(x)
   full_model(IFT = rohwer[[x, "IFT"]],
              Country = rohwer[[x, "Country"]],
              sample.size = N,
-             R = 10^2),
+             R = R),
   mc.cores = detectCores() * 0.75)
+
+
+## ----extract_output, cache=TRUE, dependson="run_model"----------------------------------------------------
 
 # EXTRACT MODEL OUTPUT -------------------------------------------------------------
 
-output <- lapply(y, function(x) x[["output"]])
+output <- lapply(y, function(x) x[["output"]][1:(2 * N)])
 names(output) <- rohwer$Country
 tmp <- lapply(output, data.table) %>%
   rbindlist(., idcol = "Country") %>%
   merge(., rohwer[, .(Country, IFT)], all.x = TRUE)
 
-tmp[, Continent:= countrycode(tmp[, Country], origin = "country.name",
-                              destination = "continent")] %>%
+tmp <- tmp[, Continent:= countrycode(tmp[, Country], origin = "country.name",
+                                     destination = "continent")] %>%
   .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
+
+
+## ----plot_ranges, cache=TRUE, dependson="extract_output", fig.height=2.5, fig.width=2.5-------------------
+
+# COMPUTE RANGES -------------------------------------------------------------------
+
+calc <- tmp[, .(min = min(V1), max = max(V1)), .(Continent, Country)] %>%
+  .[, .(range = max - min), .(Continent, Country)] %>%
+  .[order(range)]
+
+print(calc, n = Inf)
+
+rang <- calc[, .(total = .N), range] %>%
+  .[, N.countries:= 154] %>%
+  .[, fraction:= total / N.countries]
+
+print(rang)
+
+ggplot(rang, aes(range, fraction)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Range", y = "Fraction of countries") +
+  theme_AP()
+
+
+## ----plot_ranges2, cache=TRUE, dependson=c("plot_ranges", "extract_output"), fig.height=1.5, fig.width=5.6----
+
+# COMPARE RANGES -------------------------------------------------------------------
+
+ranges_empirical <- tmp[, .(higher = max(V1), lower = min(V1)), IFT] %>%
+  .[, Study:= "This study"]
+
+ranges_efficiencies <- fread("ranges_efficiencies.csv")
+
+rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2] %>%
+  .[, Study:= factor(Study, levels = c("This study",
+                                       "Brouwer et al. 1989",
+                                       "Rogers et al. 1997",
+                                       "Clemmens and Molden 2007",
+                                       "Rohwer et al. 2007",
+                                       "Van Halsema and Vincent 2012"))] %>%
+  ggplot(., aes(mean.value, Study, color = ifelse(Study == "This study", "red", "black"))) +
+  geom_point() +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  geom_errorbar(aes(xmin = lower, xmax = higher)) +
+  scale_color_identity() +
+  facet_wrap(~IFT, ncol = 4) +
+  labs(x = "Irrigation efficiency", y = "") +
+  theme_AP()
+
+
+## ----check_overlap, cache=TRUE, dependson="extract_output"------------------------------------------------
+
+# CHECK OVERLAP --------------------------------------------------------------------
+
+dd <- tmp[!Continent == "Oceania"] %>%
+  split(., .$Continent, drop = TRUE)
+
+overlap.dt <- lapply(dd, function(x) split(x, x$IFT, drop = TRUE)) %>%
+  lapply(., function(x) lapply(x, function(y) y[, V1])) %>%
+  lapply(., function(x) overlap(x)$OV)
+
+overlap.dt
+
+
+## ----unc_analysis, cache=TRUE, dependson="extract_output"-------------------------------------------------
 
 # PLOT UNCERTAINTY ---------------------------------------------------------------
 
@@ -365,6 +508,11 @@ d <- plot_ggridges(dt = tmp, Cont = "Europe") +
 legend.africa <- get_legend(a + theme(legend.position = "top"))
 legend.asia <- get_legend(c + theme(legend.position = "top"))
 
+
+## ----merge_plot_unc, cache=TRUE, dependson="unc_analysis", fig.height=6, fig.width=6----------------------
+
+# MERGE PLOTS ----------------------------------------------------------------------
+
 bottom <- plot_grid(a, d, ncol = 2)
 plot_grid(legend.africa, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
 
@@ -372,18 +520,22 @@ bottom <- plot_grid(b, c, ncol = 2)
 plot_grid(legend.asia, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
 
 
+## ----distributions, cache=TRUE, dependson="run_model", fig.height=3, fig.width=3.5------------------------
+
 # SAMPLE MATRIX DISTRIBUTIONS -----------------------------------------------------
 
-dt.micro <- lapply(y, function(x) x[["matrix"]])[[68]][, 1:2] # Israel for micro
+# Define labels
+label_facets <- c("Ea_surf" = "$E_{a_{surface}}$",
+                   "Ec_surf" = "$E_{c_{surface}}$",
+                   "Ea_sprinkler" = "$E_{a_{sprinkler}}$",
+                   "Ec_sprinkler" = "$E_{c_{sprinkler}}$",
+                   "Ea_micro" = "$E_{a_{micro}}$",
+                   "Ec_micro" = "$E_{c_{micro}}$",
+                   "Proportion_large" = "$f_L$",
+                   "m" = "$m$")
 
-lapply(y, function(x) x[["matrix"]])[[158]] %>% # Retrieve only slot 158
-  cbind(., dt.micro) %>%
-  data.table() %>%
-  melt(., measure.vars = colnames(.)) %>%
-  ggplot(., aes(value)) +
-  geom_histogram() +
-  facet_wrap(~variable) +
-  theme_AP()
+
+## ----extract_sobol, cache=TRUE, dependson=c("run_model", "extract_output")--------------------------------
 
 # EXTRACT SOBOL' INDICES -----------------------------------------------------------
 
@@ -401,21 +553,24 @@ for(i in names(tmp.ift)) {
   out[[i]] <- ind[Country %in% tmp.ift[[i]][, Country]]
 }
 
+
+## ----plot_sobol, cache=TRUE, dependson=c("extract_sobol"), fig.height=2.3, fig.width=5.5------------------
+
 # PLOT SOBOL' INDICES --------------------------------------------------------------
 
 ind.dt <- rbindlist(out, idcol = "IFT") %>%
   .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
 
+tmp <- ind.dt[, .(mean = mean(original), sd = sd(original)),
+              .(sensitivity, parameters, IFT)]
 
-ggplot(ind.dt, aes(parameters, original, fill = sensitivity)) +
-  geom_boxplot(position = position_dodge(0.6)) +
-  scale_x_discrete(labels = c("Ea_surf" = "$E_{a_{surface}}$",
-                              "Ec_surf" = "$E_{c_{surface}}$",
-                              "Ea_sprinkler" = "$E_{a_{sprinkler}}$",
-                              "Ec_sprinkler" = "$E_{c_{sprinkler}}$",
-                              "Ea_micro" = "$E_{a_{micro}}$",
-                              "Ec_micro" = "$E_{c_{micro}}$",
-                              "Proportion_large" = "$f_L$",
-                              "m" = "$m$")) +
+ggplot(tmp, aes(parameters, mean, fill = sensitivity), color = black) +
+  geom_bar(stat = "identity", position = position_dodge(0.6), color = "black") +
+  geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), position = position_dodge(0.6)) +
+  scale_x_discrete(labels = label_facets,
+                   guide = guide_axis(n.dodge = 2)) +
+  scale_fill_discrete(name = "Sensitivity", labels = c("$S_i$", "$T_i$")) +
+  labs(x = "", y = "Sobol' indices") +
   facet_grid(~IFT, space = "free_x", scale = "free_x") +
   theme_AP()
+
