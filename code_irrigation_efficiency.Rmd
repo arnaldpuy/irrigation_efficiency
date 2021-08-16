@@ -337,7 +337,7 @@ distributions_fun <- list(
 
   # REDUCTION IN MANAGEMENT FACTOR DUE TO LARGE-SCALE
   # ---------------------------
-  "r_L" = function(x) qunif(x, 0.1, 0.5)
+  "r_L" = function(x) qunif(x, 0, 0.5)
 )
 ```
 
@@ -532,69 +532,116 @@ overlap.dt
 
 # PLOT UNCERTAINTY ---------------------------------------------------------------
 
-plot_ggridges <- function(dt, Cont) {
-  pp <- ggplot(dt[Continent == Cont], aes(x = V1, y = fct_reorder(Country, V1),
-                                               fill = IFT), alpha = 0.5) +
+list_continents <- list(c("Africa", "Europe"), c("Americas", "Asia"))
+
+gg <- list()
+for (i in 1:length(list_continents)) {
+  gg[[i]] <- ggplot(tmp[Continent %in% list_continents[[i]]],
+               aes(x = V1, y = fct_reorder(Country, V1), fill = IFT), alpha = 0.5) +
     geom_density_ridges(scale = 2) +
     labs(x = "Irrigation efficiency", y = "") +
-    facet_wrap(~Continent) +
+    facet_wrap(~Continent, scales = "free") +
+    scale_x_continuous(breaks = pretty_breaks(n = 3), 
+                       limits = c(0, 1)) +
     theme_AP() +
-    theme(legend.position = "none")
-  return(pp)
+    theme(legend.position = "top")
+
+  if(i == 1) {
+    gg[[i]] <- gg[[i]] + scale_fill_manual(labels = c("Surface", "Sprinkler", "Mixed", "Micro"),
+                                 values = c("#D8B70A", "#02401B", "#81A88D", "#A2A475"),
+                                 name = "Irrigation")
+
+  } else if(i == 2) {
+    gg[[i]] <- gg[[i]] + scale_fill_manual(labels = c("Surface", "Micro", "Mixed"),
+                                 values = c("#D8B70A", "#A2A475", "#81A88D"),
+                                 name = "Irrigation")
+  }
 }
-
-a <- plot_ggridges(dt = tmp, Cont = "Africa") +
-  scale_fill_manual(labels = c("Surface", "Sprinkler", "Mixed"),
-                    values = c("#D8B70A", "#02401B", "#81A88D"),
-                    name = "Irrigation")
-
-b <- plot_ggridges(dt = tmp, Cont = "Americas") +
-  scale_fill_manual(labels = c("Surface", "Mixed"),
-                    values = c("#D8B70A", "#81A88D"),
-                    name = "Irrigation")
-
-c <- plot_ggridges(dt = tmp, Cont = "Asia") +
-  scale_fill_manual(labels = c("Surface", "Micro", "Mixed"),
-                    values = c("#D8B70A", "#A2A475", "#81A88D"),
-                    name = "Irrigation")
-
-d <- plot_ggridges(dt = tmp, Cont = "Europe") +
-  scale_fill_manual(labels = c("Surface", "Sprinkler", "Mixed"),
-                    values = c("#D8B70A", "#02401B", "#81A88D"),
-                    name = "Irrigation")
-
-
-legend.africa <- get_legend(a + theme(legend.position = "top"))
-legend.asia <- get_legend(c + theme(legend.position = "top"))
 ```
 
-```{r merge_plot_unc, cache=TRUE, dependson="unc_analysis", fig.height=6, fig.width=6}
+```{r merge_plot_unc, cache=TRUE, dependson="unc_analysis", fig.height=6, fig.width=5.2}
 
 # MERGE PLOTS ----------------------------------------------------------------------
 
-bottom <- plot_grid(a, d, ncol = 2)
-plot_grid(legend.africa, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
+gg
+```
 
-bottom <- plot_grid(b, c, ncol = 2)
-plot_grid(legend.asia, bottom, ncol = 1, rel_heights = c(0.05, 0.95))
+```{r plot_rohwer_points, cache=TRUE, dependson="datasets", fig.height=6, fig.width=5.2}
+
+# PLOT ROHWER ET AL.'S IRRIGATION EFFICIENCY VALUES --------------------------------
+
+rohwer[, Continent:= countrycode(rohwer[, Country], origin = "country.name",
+                     destination = "continent")]
+
+dd <- list()
+for (i in 1:length(list_continents)) {
+  dd[[i]] <- ggplot(rohwer[Continent %in% list_continents[[i]]],
+                    aes(x = Ep, y = fct_reorder(Country, Ep), color = IFT)) +
+    geom_point() +
+    labs(x = "Irrigation efficiency", y = "") +
+    scale_x_continuous(breaks = pretty_breaks(n = 3), 
+                       limits = c(0, 1)) +
+    facet_wrap(~Continent, scales = "free") +
+    scale_color_discrete(name = "Irrigation") +
+    theme_AP() 
+}
+
+dd
+```
+
+
+```{r define_factor_unc, cache=TRUE, dependson="extract_output", fig.height=1.5, fig.width=5.6}
+
+# CALCULATE THE UNCERTAINTY IN THE RANGES -------------------------------------------
+
+selection_continents <- c("Africa", "Asia", "Americas", "Europe")
+
+factor_unc <- tmp[, .(min = min(V1), max = max(V1)), .(Continent, Country)] %>%
+  .[Continent %in% selection_continents] %>%
+  .[, factor:= max / min]
+
+ggplot(factor_unc, aes(factor)) +
+  geom_histogram() +
+  facet_wrap(~Continent, ncol = 4) +
+  labs(x = "Factor", y = "N. of countries") +
+  theme_AP()
+
+# Number of countries whose irrigation water withdrawals fluctuate a factor of x
+# due to uncertainty in irrigation efficiency
+factor_unc %>%
+  .[, factor:= floor(max / min)] %>%
+  .[, .(number.countries = .N), factor] %>%
+  .[order(factor)] %>%
+  print()
 ```
 
 # Sensitivity analysis
 
-```{r distributions, cache=TRUE, dependson="run_model", fig.height=3, fig.width=3.5}
+```{r distributions, cache=TRUE, dependson="run_model", fig.height=3, fig.width=4, dev = "pdf"}
 
 # SAMPLE MATRIX DISTRIBUTIONS -----------------------------------------------------
 
 # Define labels
-label_facets <- c("Ea_surf" = "$E_{a_{\\text{surface}}}$",
-                  "Ec_surf" = "$E_{c_{\\text{surface}}}$",
-                  "Ea_sprinkler" = "$E_{a_{\\text{sprinkler}}}$",
-                  "Ec_sprinkler" = "$E_{c_{\\text{sprinkler}}}$",
-                  "Ea_micro" = "$E_{a_{\\text{micro}}}$",
-                  "Ec_micro" = "$E_{c_{\\text{micro}}}$",
+label_facets <- c("Ea_surf" = "$E_{a_{su}}$",
+                  "Ec_surf" = "$E_{c_{su}}$",
+                  "Ea_sprinkler" = "$E_{a_{sp}}$",
+                  "Ec_sprinkler" = "$E_{c_{sp}}$",
+                  "Ea_micro" = "$E_{a_{mi}}$",
+                  "Ec_micro" = "$E_{c_{mi}}$",
                   "Proportion_large" = "$f_L$",
                   "m" = "$m$",
                   "r_L" = "$r_L$")
+
+mat <- data.table(full_sample_matrix(IFT = "Mixed", Country = "Spain")$matrix)
+mat <- mat[, Proportion_large:= NULL]
+
+melt(mat, measure.vars = colnames(mat)) %>%
+  ggplot(., aes(value)) +
+  geom_histogram() +
+  labs(x = "Value", y = "Counts") +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  facet_wrap(~variable) +
+  theme_AP()
 ```
 
 ```{r extract_sobol, cache=TRUE, dependson=c("run_model", "extract_output")}
@@ -616,9 +663,9 @@ for(i in names(tmp.ift)) {
 }
 ```
 
-```{r plot_sobol, cache=TRUE, dependson=c("extract_sobol"), fig.height=2.3, fig.width=5.5}
+```{r plot_sobol, cache=TRUE, dependson=c("extract_sobol"), fig.height=2, fig.width=5.5}
 
-# PLOT SOBOL' INDICES --------------------------------------------------------------
+# PLOT SOBOL' INDICES ----------------------------------------------------------------
 
 ind.dt <- rbindlist(out, idcol = "IFT") %>%
   .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
@@ -637,8 +684,7 @@ rbind(tmp[IFT == "Mixed"], tmp2) %>%
   ggplot(., aes(parameters, mean, fill = sensitivity), color = black) +
   geom_bar(stat = "identity", position = position_dodge(0.6), color = "black") +
   geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), position = position_dodge(0.6)) +
-  scale_x_discrete(labels = label_facets,
-                   guide = guide_axis(n.dodge = 2)) +
+  scale_x_discrete(labels = label_facets) +
   scale_fill_discrete(name = "Sensitivity", labels = c("$S_i$", "$T_i$")) +
   labs(x = "", y = "Sobol' indices") +
   facet_grid(~IFT, space = "free_x", scale = "free_x") +
