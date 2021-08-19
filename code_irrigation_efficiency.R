@@ -51,6 +51,10 @@ rohwer <- fread("rohwer_data_all.csv")
 rohwer[rohwer == ""] <- NA
 rohwer <- rohwer[, Large_fraction:= Large_fraction / 100]
 
+# Jager data
+jager <- fread("jager_data.csv")
+jager.list <- split(jager, jager$Country)
+
 # Bos data
 bos <- fread("bos_data.csv")
 bos <- bos[, Scale := ifelse(Irrigated_area < 10000, "<10.000 ha", ">10.000 ha")]
@@ -183,7 +187,9 @@ params_algo <- list(
   "Surface" = c("Ea_surf", "Ec_surf", "Proportion_large", "m"),
   "Sprinkler" = c("Ea_sprinkler", "Ec_sprinkler", "Proportion_large", "m"),
   "Micro" = c("Ea_micro", "Ec_micro", "Proportion_large", "m"),
-  "Mixed" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler", "Proportion_large", "m")
+  "Mixed" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler", "Proportion_large", "m"),
+  "Jager" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler",
+              "Ea_micro", "Ec_micro", "Proportion_large", "m")
 )
 
 params_fun <- function(IFT) {
@@ -198,7 +204,6 @@ sample_matrix_fun <- function(IFT) {
   names(out) <- c("parameters", "matrix")
   return(out)
 }
-
 
 ## ----truncated_distr, cache=TRUE--------------------------------------------------------------------------
 
@@ -336,6 +341,7 @@ full_sample_matrix <- function(IFT, Country) {
 
 full_model <- function(IFT, Country, sample.size, R) {
 
+  country.differences <- setdiff(rohwer$Country, jager$Country)
   tmp <- full_sample_matrix(IFT = IFT, Country = Country)
   mat <- tmp$matrix
 
@@ -359,13 +365,42 @@ full_model <- function(IFT, Country, sample.size, R) {
 
     y <- 0.5 * y.surf + 0.5 * y.sprink
 
-  } else {
+  } else if(IFT == "Micro") {
+
     Mf <- mat[, "m"]
     y <- mat[, "Ea_micro"] * mat[, "Ec_micro"] * Mf
+
+  } else if(IFT == "Jager") {
+
+    if(Country %in% country.differences == TRUE) {
+      next
+    }
+
+    Mf.surf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
+    y.surf <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf.surf
+
+    Mf.spr <- mat[, "m"]
+    y.spr <- mat[, "Ea_sprinkler"] * mat[, "Ec_sprinkler"] * Mf.spr
+
+    Mf.micro <- mat[, "m"]
+    y.micro <- mat[, "Ea_micro"] * mat[, "Ec_micro"] * Mf.micro
+
+    y <- jager.list[[Country]]$Surface_fraction * y.surf +
+      jager.list[[Country]]$Sprinkler_fraction * y.spr +
+      jager.list[[Country]]$Drip_fraction * y.micro
+
+  }
+
+  if(IFT == "Jager") {
+    boot <- FALSE
+    R <- NULL
+  } else {
+    boot <- TRUE
+    R <- R
   }
 
   ind <- sobol_indices(N = sample.size, Y = y, params = tmp$parameters,
-                       boot = TRUE, R = R)
+                       boot = boot, R = R)
   out <- list(y, ind)
   names(out) <- c("output", "indices")
   return(out)
@@ -384,48 +419,76 @@ R <- 10^2
 
 # RUN MODEL -------------------------------------------------------------------------
 
-y <- mclapply(1:nrow(rohwer), function(x)
-  full_model(IFT = rohwer[[x, "IFT"]],
-             Country = rohwer[[x, "Country"]],
-             sample.size = N,
-             R = R),
-  mc.cores = detectCores() * 0.75)
+new.rohwer <- rohwer[Country %in% jager$Country][, IFT:= "Jager"]
+all.dt <- list(rohwer, new.rohwer)
 
+y <- list()
+for(j in 1:length(all.dt)) {
+  y[[j]] <- mclapply(1:nrow(all.dt[[j]]), function(x)
+    full_model(IFT = all.dt[[j]][[x, "IFT"]],
+               Country = all.dt[[j]][[x, "Country"]],
+               sample.size = N,
+               R = R),
+    mc.cores = detectCores() * 0.75)
+}
 
 ## ----extract_output, cache=TRUE, dependson="run_model"----------------------------------------------------
 
 # EXTRACT MODEL OUTPUT -------------------------------------------------------------
 
-output <- lapply(y, function(x) x[["output"]][1:(2 * N)])
-names(output) <- rohwer$Country
-tmp <- lapply(output, data.table) %>%
-  rbindlist(., idcol = "Country") %>%
-  merge(., rohwer[, .(Country, IFT)], all.x = TRUE)
+names(y) <- c("Rohwer et al. 2007", "Jägermeyr et al. 2015")
 
-tmp <- tmp[, Continent:= countrycode(tmp[, Country], origin = "country.name",
-                                     destination = "continent")] %>%
-  .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
+output <- tmp <- list()
+for(i in names(y)) {
+  output[[i]] <- lapply(y[[i]], function(x) x[["output"]][1:(2 * N)])
+
+  if(i == "Rohwer et al. 2007") {
+
+    names(output[[i]]) <- rohwer$Country
+
+  } else if(i == "Jägermeyr et al. 2015") {
+
+    names(output[[i]]) <- new.rohwer$Country
+
+  }
+  tmp[[i]] <- lapply(output[[i]], data.table) %>%
+    rbindlist(., idcol = "Country")
+
+  if(i == "Rohwer et al. 2007") {
+
+    tmp[[i]] <- merge(tmp[[i]], rohwer[, .(Country, IFT)], all.x = TRUE) %>%
+      .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
+
+  } else if(i == "Jägermeyr et al. 2015") {
+
+    tmp[[i]] <- tmp[[i]][, IFT:= "Jager"]
+
+  }
+
+  tmp[[i]] <- tmp[[i]][, Continent:= countrycode(tmp[[i]][, Country],
+                                                 origin = "country.name",
+                                                 destination = "continent")]
+}
+
+uncertainty.dt <- rbindlist(tmp, idcol = "Approach")
+uncertainty.dt <- uncertainty.dt[, Study:= ifelse(IFT == "Jager",
+                                                  "Distribution of IFT is precisely known",
+                                                  "Distribution of IFT is not known")]
 
 
 ## ----plot_ranges, cache=TRUE, dependson="extract_output", fig.height=2.5, fig.width=2.5-------------------
 
 # COMPUTE RANGES -------------------------------------------------------------------
 
-calc <- tmp[, .(min = min(V1), max = max(V1)), .(Continent, Country)] %>%
+calc <- uncertainty.dt[, .(min = min(V1), max = max(V1)), .(Continent, Country)] %>%
   .[, .(range = max - min), .(Continent, Country)] %>%
   .[order(range)]
 
 print(calc, n = Inf)
 
-rang <- calc[, .(total = .N), range] %>%
-  .[, N.countries:= 154] %>%
-  .[, fraction:= total / N.countries]
-
-print(rang)
-
-ggplot(rang, aes(range, fraction)) +
-  geom_bar(stat = "identity") +
-  labs(x = "Range", y = "Fraction of countries") +
+ggplot(calc, aes(range)) +
+  geom_histogram() +
+  labs(x = "Range", y = "Counts") +
   theme_AP()
 
 
@@ -433,8 +496,9 @@ ggplot(rang, aes(range, fraction)) +
 
 # COMPARE RANGES -------------------------------------------------------------------
 
-ranges_empirical <- tmp[, .(higher = max(V1), lower = min(V1)), IFT] %>%
-  .[, Study:= "This study"]
+ranges_empirical <- uncertainty.dt[, .(higher = max(V1), lower = min(V1)), IFT] %>%
+  .[, Study:= "This study"]%>%
+  .[!IFT == "Jager"]
 
 ranges_efficiencies <- fread("ranges_efficiencies.csv")
 
@@ -445,6 +509,7 @@ rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2
                                        "Clemmens and Molden 2007",
                                        "Rohwer et al. 2007",
                                        "Van Halsema and Vincent 2012"))] %>%
+  na.omit() %>%
   ggplot(., aes(mean.value, Study, color = ifelse(Study == "This study", "red", "black"))) +
   geom_point() +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
@@ -459,7 +524,7 @@ rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2
 
 # CHECK OVERLAP --------------------------------------------------------------------
 
-dd <- tmp[!Continent == "Oceania"] %>%
+dd <- uncertainty.dt[!Continent == "Oceania"][Study == "One IFT per country"] %>%
   split(., .$Continent, drop = TRUE)
 
 overlap.dt <- lapply(dd, function(x) split(x, x$IFT, drop = TRUE)) %>%
@@ -468,45 +533,170 @@ overlap.dt <- lapply(dd, function(x) split(x, x$IFT, drop = TRUE)) %>%
 
 overlap.dt
 
+ff <- uncertainty.dt[!Continent == "Oceania"] %>%
+  split(., .$Continent, drop = TRUE)
+
+overlap.ff <- lapply(ff, function(x) split(x, x$Approach, drop = TRUE)) %>%
+  lapply(., function(x) lapply(x, function(y) y[, V1])) %>%
+  lapply(., function(x) overlap(x)$OV)
+
+overlap.ff
 
 ## ----unc_analysis, cache=TRUE, dependson="extract_output"-------------------------------------------------
 
 # PLOT UNCERTAINTY ---------------------------------------------------------------
 
-plot_ggridges <- function(dt, Cont) {
-  pp <- ggplot(dt[Continent == Cont], aes(x = V1, y = fct_reorder(Country, V1),
-                                               fill = IFT), alpha = 0.5) +
-    geom_density_ridges(scale = 2) +
+list_continents <- list(c("Africa", "Asia"), c("Americas", "Europe"))
+
+gg <- list()
+for (i in 1:length(list_continents)) {
+  gg[[i]] <- ggplot(uncertainty.dt[Continent %in% list_continents[[i]]],
+                    aes(x = V1, y = fct_reorder(Country, V1), fill = Study)) +
+    geom_density_ridges(scale = 2, alpha = 0.3) +
     labs(x = "Irrigation efficiency", y = "") +
-    facet_wrap(~Continent) +
+    facet_wrap(~Continent, scales = "free") +
+    scale_x_continuous(breaks = pretty_breaks(n = 3),
+                       limits = c(0, 1)) +
+    scale_fill_manual(values = wes_palette("Chevalier1")) +
     theme_AP() +
-    theme(legend.position = "none")
-  return(pp)
+    theme(legend.position = "top") +
+    guides(fill = guide_legend(nrow = 2, byrow = TRUE))
 }
 
-a <- plot_ggridges(dt = tmp, Cont = "Africa") +
-  scale_fill_manual(labels = c("Surface", "Sprinkler", "Mixed"),
-                    values = c("#D8B70A", "#02401B", "#81A88D"),
-                    name = "Irrigation")
-
-b <- plot_ggridges(dt = tmp, Cont = "Americas") +
-  scale_fill_manual(labels = c("Surface", "Mixed"),
-                    values = c("#D8B70A", "#81A88D"),
-                    name = "Irrigation")
-
-c <- plot_ggridges(dt = tmp, Cont = "Asia") +
-  scale_fill_manual(labels = c("Surface", "Micro", "Mixed"),
-                    values = c("#D8B70A", "#A2A475", "#81A88D"),
-                    name = "Irrigation")
-
-d <- plot_ggridges(dt = tmp, Cont = "Europe") +
-  scale_fill_manual(labels = c("Surface", "Sprinkler", "Mixed"),
-                    values = c("#D8B70A", "#02401B", "#81A88D"),
-                    name = "Irrigation")
+gg
 
 
-legend.africa <- get_legend(a + theme(legend.position = "top"))
-legend.asia <- get_legend(c + theme(legend.position = "top"))
+# PLOT ROHWER ET AL.'S IRRIGATION EFFICIENCY VALUES --------------------------------
+
+rohwer[, Continent:= countrycode(rohwer[, Country], origin = "country.name",
+                                 destination = "continent")]
+
+dd <- list()
+for (i in 1:length(list_continents)) {
+  dd[[i]] <- ggplot(rohwer[Continent %in% list_continents[[i]]],
+                    aes(x = Ep, y = fct_reorder(Country, Ep), color = IFT)) +
+    geom_point() +
+    labs(x = "Irrigation efficiency", y = "") +
+    scale_x_continuous(breaks = pretty_breaks(n = 3),
+                       limits = c(0, 1)) +
+    facet_wrap(~Continent, scales = "free") +
+    scale_color_discrete(name = "Irrigation") +
+    theme_AP()
+}
+
+dd
+
+# CALCULATE THE UNCERTAINTY IN THE RANGES -------------------------------------------
+
+selection_continents <- c("Africa", "Asia", "Americas", "Europe")
+
+factor_unc <- uncertainty.dt[, .(min = min(V1), max = max(V1)), .(Continent, Country)] %>%
+  .[Continent %in% selection_continents] %>%
+  .[, factor:= max / min]
+
+ggplot(factor_unc, aes(factor)) +
+  geom_histogram() +
+  facet_wrap(~Continent, ncol = 4) +
+  labs(x = "Factor", y = "N. of countries") +
+  theme_AP()
+
+# Number of countries whose irrigation water withdrawals fluctuate a factor of x
+# due to uncertainty in irrigation efficiency
+factor_unc %>%
+  .[, factor:= floor(max / min)] %>%
+  .[, .(number.countries = .N), factor] %>%
+  .[order(factor)] %>%
+  print()
+
+# SAMPLE MATRIX DISTRIBUTIONS -----------------------------------------------------
+
+# Define labels
+label_facets <- c("Ea_surf" = "$E_{a_{su}}$",
+                  "Ec_surf" = "$E_{c_{su}}$",
+                  "Ea_sprinkler" = "$E_{a_{sp}}$",
+                  "Ec_sprinkler" = "$E_{c_{sp}}$",
+                  "Ea_micro" = "$E_{a_{mi}}$",
+                  "Ec_micro" = "$E_{c_{mi}}$",
+                  "Proportion_large" = "$f_L$",
+                  "m" = "$m$",
+                  "r_L" = "$r_L$")
+
+mat <- data.table(full_sample_matrix(IFT = "Jager", Country = "Spain")$matrix)
+mat <- mat[, Proportion_large:= NULL]
+
+melt(mat, measure.vars = colnames(mat)) %>%
+  ggplot(., aes(value)) +
+  geom_histogram() +
+  labs(x = "Value", y = "Counts") +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  facet_wrap(~variable) +
+  theme_AP()
+
+# EXTRACT SOBOL' INDICES -----------------------------------------------------------
+
+ind <- lapply(y$`Rohwer et al. 2007`, function(x) x[["indices"]]$results)
+names(ind) <- rohwer$Country
+ind <- rbindlist(ind, idcol = "Country")
+
+ind[, Continent:= countrycode(ind[, Country], origin = "country.name",
+                              destination = "continent")]
+
+tmp.ift <- split(rohwer, rohwer$IFT)
+
+out <- list()
+for(i in names(tmp.ift)) {
+  out[[i]] <- ind[Country %in% tmp.ift[[i]][, Country]]
+}
+
+# PLOT SOBOL' INDICES ----------------------------------------------------------------
+
+ind.dt <- rbindlist(out, idcol = "IFT") %>%
+  .[, IFT:= factor(IFT, levels = c("Surface", "Sprinkler", "Micro", "Mixed"))]
+
+tmp <- ind.dt[, .(mean = mean(original), sd = sd(original)),
+              .(sensitivity, parameters, IFT)]
+
+tmp2 <- tmp[!IFT == "Mixed"][, parameters:= ifelse(parameters == "Ea_surf", "$E_a$",
+                                                   ifelse(parameters == "Ec_surf", "$E_c$",
+                                                          ifelse(parameters == "Ea_sprinkler", "$E_a$",
+                                                                 ifelse(parameters == "Ec_sprinkler", "$E_c$",
+                                                                        ifelse(parameters == "Ea_micro", "$E_a$",
+                                                                               ifelse(parameters == "Ec_micro", "$E_c$", parameters))))))]
+
+rbind(tmp[IFT == "Mixed"], tmp2) %>%
+  ggplot(., aes(parameters, mean, fill = sensitivity), color = black) +
+  geom_bar(stat = "identity", position = position_dodge(0.6), color = "black") +
+  geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), position = position_dodge(0.6)) +
+  scale_x_discrete(labels = label_facets) +
+  scale_fill_discrete(name = "Sensitivity", labels = c("$S_i$", "$T_i$")) +
+  labs(x = "", y = "Sobol' indices") +
+  facet_grid(~IFT, space = "free_x", scale = "free_x") +
+  theme_AP()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#########################
+##########################
+
+
+
+
+
+
 
 
 ## ----merge_plot_unc, cache=TRUE, dependson="unc_analysis", fig.height=6, fig.width=6----------------------

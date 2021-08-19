@@ -8,10 +8,15 @@ Micro,0.9,0.8,Clemmens and Molden 2007
 Surface,0.6,0.6,Brouwer et al. 1989
 Sprinkler,0.75,0.75,Brouwer et al. 1989
 Micro,0.9,0.9,Brouwer et al. 1989
-Surface,0.57,0.29,Rohwer et al. 2007
+Surface,0.42,0.29,Rohwer et al. 2007
 Sprinkler,0.71,0.71,Rohwer et al. 2007
 Micro,0.86,0.86,Rohwer et al. 2007
 Mixed,0.57,0.5,Rohwer et al. 2007
 Surface,0.95,0.5,Rogers et al. 1997
 Sprinkler,0.95,0.6,Rogers et al. 1997
 Micro,0.95,0.7,Rogers et al. 1997
+Surface,0.51,0.07,Bos and Nugteren 1990
+Sprinkler,0.6,0.28,Bos and Nugteren 1990
+Surface,0.9,0.6,Fairweather et al. 2004
+Sprinkler,0.9,0.6,Fairweather et al. 2004
+Micro,0.9,0.75,Fairweather et al. 2004
