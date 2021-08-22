@@ -11,6 +11,8 @@ This is the R code of the paper, whose abstract is the following:
 We provide the code in `.R`, `.rmd` and `.pdf` along with the system requirements. Contact Arnald Puy (arnald.puy@pm.me) for further information.
 
 ## Datasets included
+We include all .csv datasets needed to replicate our work. The .nc files weight too much and should be downloaded from either ISIMIP (https://www.isimip.org).
+
 `rohwer_data_all.csv`: produced from Rohwer et al. 2007.
 
 `bos_data.csv`: produced from Bos and Nugteren 1990.
