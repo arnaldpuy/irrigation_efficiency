@@ -215,12 +215,12 @@ plot_grid(top, bottom, ncol = 1, rel_heights = c(0.3, 0.7))
 # CREATE FUNCTION TO DESIGN SAMPLE MATRIX ------------------------------------------
 
 params_algo <- list(
-  "Surface" = c("Ea_surf", "Ec_surf", "Proportion_large", "m"),
-  "Sprinkler" = c("Ea_sprinkler", "Ec_sprinkler", "Proportion_large", "m"),
-  "Micro" = c("Ea_micro", "Ec_micro", "Proportion_large", "m"),
-  "Mixed" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler", "Proportion_large", "m"),
+  "Surface" = c("Ea_surf", "Ec_surf", "m", "r_L", "X1", "X2"),
+  "Sprinkler" = c("Ea_sprinkler", "Ec_sprinkler", "m"),
+  "Micro" = c("Ea_micro", "Ec_micro", "m"),
+  "Mixed" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler", "m", "r_L", "X1", "X2"),
   "Jager" = c("Ea_surf", "Ea_sprinkler", "Ec_surf", "Ec_sprinkler",
-              "Ea_micro", "Ec_micro", "Proportion_large", "m")
+              "Ea_micro", "Ec_micro", "m", "r_L", "X1", "X2")
 )
 
 params_fun <- function(IFT) {
@@ -339,7 +339,17 @@ distributions_fun <- list(
 
   # REDUCTION IN MANAGEMENT FACTOR DUE TO LARGE-SCALE
   # ---------------------------
-  "r_L" = function(x) qunif(x, 0, 0.5)
+  "r_L" = function(x) qunif(x, 0, 0.5),
+
+  # IRRIGATED AREA DATASET
+  # ---------------------------
+
+  "X1" = function(x) floor(x * (4 - 1 + 1)) + 1,
+
+  # THRESHOLD FOR LARGE-SCALE IRRIGATED AREAS
+  # ----------------------------
+
+  "X2" = function(x) floor(x * (5 - 1 + 1)) + 1
 )
 ```
 
@@ -354,6 +364,15 @@ rohwer.frac[, `:=` (min = Large_fraction, max = Large_fraction + 0.1)]
 
 countries.list <- split(rohwer.frac, seq(nrow(rohwer.frac)))
 names(countries.list) <- rohwer$Country
+
+n.rows <- nrow(rohwer)
+triggers.dt <- rohwer[rep(seq_len(n.rows), 4 * 5)][, .(Country, IFT)] %>%
+  .[, X1:= rep(1:4, each = n.rows, times = 5)] %>%
+  .[, X2:= rep(1:5, each = n.rows, times = 4)] %>%
+  .[, Proportion_large:= runif(n.rows * 4 * 5)] %>%
+  .[, index:= paste(Country, X1, X2, sep = ".")]
+
+triggers.dt <- setkey(triggers.dt, index)
 ```
 
 ## Function to create sample matrix and transfrom to appropriate distributions
@@ -369,12 +388,6 @@ full_sample_matrix <- function(IFT, Country) {
   mat <- sapply(seq_along(temp), function(x) distributions_fun[[temp[x]]](mat[, x]))
   colnames(mat) <- temp
   countries.frac <- countries.list[[Country]]
-
-  if(IFT == "Surface" | IFT == "Mixed") {
-
-  mat[, "Proportion_large"] <- qunif(mat[, "Proportion_large"],
-                                       countries.frac$min, countries.frac$max)
-  }
   out <- list(tmp$parameters, mat)
   names(out) <- c("parameters", "matrix")
   return(out)
@@ -393,9 +406,16 @@ full_model <- function(IFT, Country, sample.size, R) {
   tmp <- full_sample_matrix(IFT = IFT, Country = Country)
   mat <- tmp$matrix
 
+  if(IFT == "Surface" | IFT == "Mixed" | IFT == "Jager") {
+    X1 <- mat[, "X1"]
+    X2 <- mat[, "X2"]
+    index <- paste(Country, X1, X2, sep = ".")
+    Proportion_large <- triggers.dt[index][, Proportion_large]
+  }
+
   if(IFT == "Surface") {
 
-    Mf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
+    Mf <- mat[, "m"] - mat[, "r_L"] * Proportion_large
     y <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf
 
   } else if(IFT == "Sprinkler") {
@@ -405,13 +425,13 @@ full_model <- function(IFT, Country, sample.size, R) {
 
   } else if(IFT == "Mixed") {
 
-    Mf.surf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
+    Mf.surf <- mat[, "m"] - mat[, "r_L"] * Proportion_large
     y.surf <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf.surf
 
     Mf.sprink <- mat[, "m"]
     y.sprink <- mat[, "Ea_sprinkler"] * mat[, "Ec_sprinkler"] * Mf.sprink
 
-    y <- 0.5 * y.surf + 0.5 * y.sprink
+    y <- 0.5 * y.surf + mat[, "r_L"] * y.sprink
 
   } else if(IFT == "Micro") {
 
@@ -424,7 +444,7 @@ full_model <- function(IFT, Country, sample.size, R) {
       next
     }
 
-    Mf.surf <- mat[, "m"] - 0.5 * mat[, "Proportion_large"]
+    Mf.surf <- mat[, "m"] - mat[, "r_L"] * Proportion_large
     y.surf <- mat[, "Ea_surf"] * mat[, "Ec_surf"] * Mf.surf
 
     Mf.spr <- mat[, "m"]
@@ -439,16 +459,8 @@ full_model <- function(IFT, Country, sample.size, R) {
 
   }
 
-  if(IFT == "Jager") {
-    boot <- FALSE
-    R <- NULL
-  } else {
-    boot <- TRUE
-    R <- R
-  }
-
   ind <- sobol_indices(N = sample.size, Y = y, params = tmp$parameters,
-                       boot = boot, R = R)
+                       boot = TRUE, R = R)
   out <- list(y, ind)
   names(out) <- c("output", "indices")
   return(out)
@@ -461,7 +473,7 @@ full_model <- function(IFT, Country, sample.size, R) {
 
 # DEFINE SETTINGS ------------------------------------------------------------------
 
-N <- 2^13
+N <- 2^14
 R <- 10^2
 ```
 
@@ -582,11 +594,11 @@ rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2
   theme_AP()
 ```
 
-```{r check_overlap, cache=TRUE, dependson="extract_output"}
+```{r check_overlap, cache=TRUE, dependson="extract_output", fig.height=6.4, fig.width=5.2}
 
 # CHECK OVERLAP -------------------------------------------------------------------
 
-dd <- uncertainty.dt[!Continent == "Oceania"][Study == "One IFT per country"] %>%
+dd <- uncertainty.dt[!Continent == "Oceania"][Study == "The proportion of IFTs is not known"] %>%
   split(., .$Continent, drop = TRUE)
 
 overlap.dt <- lapply(dd, function(x) split(x, x$IFT, drop = TRUE)) %>%
@@ -596,8 +608,34 @@ overlap.dt <- lapply(dd, function(x) split(x, x$IFT, drop = TRUE)) %>%
 overlap.dt
 
 ff <- uncertainty.dt[!Continent == "Oceania"] %>%
-  split(., .$Approach, drop = TRUE)
+  .[Country %in% intersect(rohwer[, Country], jager[, Country])] %>%
+  split(., .$Country, drop = TRUE) %>%
+  lapply(., function(x) split(x, x$Approach, drop = TRUE)) %>%
+  lapply(., function(x) lapply(x, function(y) y[, V1])) %>%
+  lapply(., function(x) overlap(x)$OV) %>%
+  lapply(., data.table) %>%
+  rbindlist(., idcol = "Country") %>%
+  .[, Continent:= countrycode(.[, Country],
+                             origin = "country.name",
+                             destination = "continent")]
 
+list_continents <- list(c("Africa", "Asia"), c("Americas", "Europe"))
+
+# PLOT OVERLAP ------------
+
+dd <- list()
+for(i in 1:length(list_continents)) {
+  dd[[i]] <- ff[Continent %in% list_continents[[i]]] %>%
+    ggplot(., aes(reorder(Country, V1), V1)) +
+    geom_point() +
+    scale_color_discrete(name = "GM") +
+    labs(y = "Overlap", x = "") +
+    facet_wrap(~Continent, scales = "free_y") +
+    coord_flip() +
+    theme_AP()
+}
+
+dd
 ```
 
 # Uncertainty analysis 
@@ -605,8 +643,6 @@ ff <- uncertainty.dt[!Continent == "Oceania"] %>%
 ```{r unc_analysis, cache=TRUE, dependson="extract_output"}
 
 # PLOT UNCERTAINTY ---------------------------------------------------------------
-
-list_continents <- list(c("Africa", "Asia"), c("Americas", "Europe"))
 
 gg <- list()
 for (i in 1:length(list_continents)) {
@@ -1023,9 +1059,9 @@ rbind(tmp[IFT == "Mixed"], tmp2) %>%
   theme_AP()
 ```
 
-```{r extract_jager_indices, cache=TRUE, dependson="extract_output", fig.height=7.3, fig.width=5.5}
+```{r extract_jager_indices, cache=TRUE, dependson="extract_output", fig.height=7.3, fig.width=5.5, dev = "pdf"}
 
-# EXTRACT SOBOL' INDICES FOR JAGER -------------------------------------------------
+# EXTRACT SOBOL' INDICES FOR JAGER --------------------------------------------------
 
 jager.tmp <- lapply(y[["Jägermeyr et al. 2015"]], function(x) x$indices$results)
 names(jager.tmp) <- new.rohwer$Country
