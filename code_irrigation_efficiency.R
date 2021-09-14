@@ -1,8 +1,8 @@
-## ----setup, include=FALSE-------------------------------------------------------------------------------------
+## ----setup, include=FALSE--------------------------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE, dev = "tikz")
 
 
-## ----packages, results="hide", message=FALSE, warning=FALSE---------------------------------------------------
+## ----packages, results="hide", message=FALSE, warning=FALSE----------------------------------------------
 
 # Function to read in all required packages in one go:
 loadPackages <- function(x) {
@@ -30,7 +30,7 @@ theme_AP <- function() {
           legend.key = element_rect(fill = "transparent",
                                     color = NA),
           legend.position = "top",
-          strip.background = element_rect(fill = "white"), 
+          strip.background = element_rect(fill = "white"),
           plot.margin = margin(t = 0, r = 0.3, b = 0, l = 0.3, unit ="cm"))
 }
 
@@ -44,7 +44,7 @@ checkpoint("2021-08-02",
            checkpointLocation = getwd())
 
 
-## ----datasets, cache=TRUE-------------------------------------------------------------------------------------
+## ----datasets, cache=TRUE--------------------------------------------------------------------------------
 
 # READ IN DATA ---------------------------------------------------------------------
 
@@ -93,7 +93,7 @@ bos.rohwer.mf.ed <- data.table("Scale" = c("<10.000 ha", ">10.000 ha"),
 bos.rohwer.mf.all <- rbind(bos.rohwer.mf.ec, bos.rohwer.mf.ed)
 
 
-## ----plot_rohwer, cache=TRUE, dependson="datasets"------------------------------------------------------------
+## ----plot_rohwer, cache=TRUE, dependson="datasets"-------------------------------------------------------
 
 # PLOT -----------------------------------------------------------------------------
 
@@ -142,7 +142,7 @@ bottom <- plot_grid(a, b, ncol = 1, labels = c("c", "d"))
 bottom
 
 
-## ----plot_usa_africa, cache=TRUE, dependson="datasets", fig.width=3.5-----------------------------------------
+## ----plot_usa_africa, cache=TRUE, dependson="datasets", fig.width=3.5------------------------------------
 
 # PLOT USA AND AFRICA --------------------------------------------------------------
 
@@ -151,13 +151,13 @@ c1 <- ggplot(usa.dt, aes(Efficiency)) +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
   geom_vline(xintercept = 0.6, lty = 2) +
   labs(x = "", y = "Counts") +
-  theme_AP() 
+  theme_AP()
 
 d1 <- ggplot(fao_dt, aes(Efficiency)) +
   geom_histogram() +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
   labs(x = "", y = "") +
-  theme_AP() 
+  theme_AP()
 
 top <- cowplot::plot_grid(c1, d1, ncol = 2, labels = "auto")
 top
@@ -170,7 +170,7 @@ top
 plot_grid(top, bottom, ncol = 1, rel_heights = c(0.3, 0.7))
 
 
-## ----matrix_fun, cache=TRUE-----------------------------------------------------------------------------------
+## ----matrix_fun, cache=TRUE------------------------------------------------------------------------------
 
 # CREATE FUNCTION TO DESIGN SAMPLE MATRIX ------------------------------------------
 
@@ -197,7 +197,7 @@ sample_matrix_fun <- function(IFT) {
 }
 
 
-## ----truncated_distr, cache=TRUE------------------------------------------------------------------------------
+## ----truncated_distr, cache=TRUE-------------------------------------------------------------------------
 
 # DEFINE TRUNCATED DISTRIBUTIONS ---------------------------------------------------
 
@@ -245,7 +245,7 @@ beta_dist.m <- sapply(c(minimum.m, maximum.m), function(x)
 
 
 
-## ----distributions_func, cache=TRUE---------------------------------------------------------------------------
+## ----distributions_func, cache=TRUE----------------------------------------------------------------------
 
 # FUNCTION TO TRANSFORM TO APPROPRIATE DISTRIBUTIONS -------------------------------
 
@@ -311,7 +311,7 @@ distributions_fun <- list(
 )
 
 
-## ----unc_large_fraction, cache=TRUE, dependson="datasets"-----------------------------------------------------
+## ----unc_large_fraction, cache=TRUE, dependson="datasets"------------------------------------------------
 
 # DEFINE THE UNCERTAINTY IN THE LARGE FRACTION AT THE COUNTRY LEVEL ----------------
 
@@ -325,11 +325,10 @@ n.rows <- nrow(rohwer)
 triggers.dt <- rohwer[rep(seq_len(n.rows), 4 * 5)][, .(Country, IFT)] %>%
   .[, X1:= rep(1:4, each = n.rows, times = 5)] %>%
   .[, X2:= rep(1:5, each = n.rows, times = 4)] %>%
-  .[, Proportion_large:= runif(n.rows * 4 * 5)] %>%
+  .[, Proportion_large:= runif(n.rows * 4 * 5, min = 0.01, max = 0.7)] %>%
   .[, index:= paste(Country, X1, X2, sep = ".")]
 
 triggers.dt <- setkey(triggers.dt, index)
-
 
 ## ----distr_final, cache=TRUE, dependson=c("distributions_func", "truncated_distr", "matrix_fun", "unc_large_fraction")----
 
@@ -383,7 +382,7 @@ full_model <- function(IFT, Country, sample.size, R) {
     Mf.sprink <- mat[, "m"]
     y.sprink <- mat[, "Ea_sprinkler"] * mat[, "Ec_sprinkler"] * Mf.sprink
 
-    y <- 0.5 * y.surf + mat[, "r_L"] * y.sprink
+    y <- 0.5 * y.surf + 0.5 * y.sprink
 
   } else if(IFT == "Micro") {
 
@@ -419,12 +418,13 @@ full_model <- function(IFT, Country, sample.size, R) {
 }
 
 
-## ----settings, cache=TRUE-------------------------------------------------------------------------------------
+## ----settings, cache=TRUE--------------------------------------------------------------------------------
 
 # DEFINE SETTINGS ------------------------------------------------------------------
 
 N <- 2^14
 R <- 10^2
+list_continents <- list(c("Africa", "Asia"), c("Americas", "Europe"))
 
 
 ## ----run_model, cache=TRUE, dependson=c("distr_final", "unc_large_fraction", "distributions_func", "truncated_distr", "matrix_fun", "full_model", "settings")----
@@ -445,7 +445,7 @@ for(j in 1:length(all.dt)) {
 }
 
 
-## ----extract_output, cache=TRUE, dependson="run_model"--------------------------------------------------------
+## ----extract_output, cache=TRUE, dependson="run_model"---------------------------------------------------
 
 # EXTRACT MODEL OUTPUT -------------------------------------------------------------
 
@@ -484,19 +484,49 @@ for(i in names(y)) {
 }
 
 uncertainty.dt <- rbindlist(tmp, idcol = "Approach")
-uncertainty.dt <- uncertainty.dt[, Study:= ifelse(IFT == "Jager", 
-                                                  "The proportion of IFTs is known",
-                                                  "The proportion of IFTs is not known")]
+uncertainty.dt <- uncertainty.dt[, Study:= ifelse(IFT == "Jager",
+                                                  "Jägermeyr et al. approach",
+                                                  "Rohwer et al. approach")]
 
 
-## ----export_uncertainty, cache=TRUE, dependson="extract_output"-----------------------------------------------
+## ----export_uncertainty, cache=TRUE, dependson="extract_output"------------------------------------------
 
 # EXPORT UNCERTAINTY IN IRRIGATION EFFICIENCY --------------------------------------
 
 fwrite(uncertainty.dt, "uncertainty.dt.csv")
 
 
-## ----plot_ranges, cache=TRUE, dependson="extract_output", fig.height=2.5, fig.width=2.5-----------------------
+## ----cv_irrigation, cache=TRUE, dependson="extract_output", fig.height=6.4, fig.width=5.2, message=FALSE, warning=FALSE----
+
+# CALCULATE COEFFICIENT OF VARIATION -----------------------------------------------
+
+cv.dt <- uncertainty.dt[, .(sd = sd(V1), mean = mean(V1)),
+                        .(Country, Approach, Continent)] %>%
+  .[, cv:= sd / mean]
+
+dd <- list()
+for (i in 1:length(list_continents)) {
+  dd[[i]] <- ggplot(cv.dt[Continent %in% list_continents[[i]]],
+                    aes(reorder(Country, cv), cv, color = Approach)) +
+    geom_point() +
+    scale_color_manual(values = wes_palette("Chevalier1"),
+                       labels = c("Jägermeyr et al. approach",
+                                  "Rohwer et al. approach")) +
+    labs(y = "Coefficient of variation",
+         x = "") +
+    facet_wrap(~Continent, scales = "free_y") +
+    scale_y_continuous(limits = c(0, 1),
+                       breaks = pretty_breaks(n = 3)) +
+
+    coord_flip() +
+    theme_AP() +
+    guides(color = guide_legend(nrow = 2, byrow = TRUE))
+}
+
+dd
+
+
+## ----plot_ranges, cache=TRUE, dependson="extract_output", fig.height=2.5, fig.width=2.5------------------
 
 # COMPUTE RANGES -------------------------------------------------------------------
 
@@ -540,11 +570,11 @@ rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2
   theme_AP()
 
 
-## ----check_overlap, cache=TRUE, dependson="extract_output", fig.height=6.4, fig.width=5.2---------------------
+## ----check_overlap, cache=TRUE, dependson="extract_output", fig.height=6.4, fig.width=5.2----------------
 
 # CHECK OVERLAP -------------------------------------------------------------------
 
-dd <- uncertainty.dt[!Continent == "Oceania"][Study == "The proportion of IFTs is not known"] %>%
+dd <- uncertainty.dt[!Continent == "Oceania"][Study == "Rohwer et al. approach"] %>%
   split(., .$Continent, drop = TRUE)
 
 overlap.dt <- lapply(dd, function(x) split(x, x$IFT, drop = TRUE)) %>%
@@ -584,9 +614,37 @@ for(i in 1:length(list_continents)) {
 dd
 
 
-## ----unc_analysis, cache=TRUE, dependson="extract_output"-----------------------------------------------------
+## ----plot_overlap_histogram, cache=TRUE, dependson="check_overlap", fig.height=2.5, fig.width=3.5, message=FALSE, warning=FALSE----
 
-# PLOT UNCERTAINTY ---------------------------------------------------------------
+# PLOT OVERLAP AS HISTOGRAMS AND BOXPLOTS  -----------------------------------------
+
+ggplot(ff, aes(V1)) +
+  geom_histogram() +
+  facet_wrap(~Continent) +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  theme_AP() +
+  labs(x = "Fraction of overlap", y = "Nº of countries")
+
+ggplot(ff, aes(Continent, V1)) +
+  geom_boxplot() +
+  coord_flip() +
+  theme_AP() +
+  labs(y = "Fraction of overlap", x = "")
+
+
+## ----correspondence_ift, cache=TRUE, dependson="check_overlap"-------------------------------------------
+
+# CHECK CORRESPONDENCE BETWEEN SHARES OF IFT AND PREDOMINANT TECHNOLOGY ------------
+
+# Retrieve countries where overlap is <0.3
+merge(jager, rohwer, by = c("Country")) %>%
+  .[Country %in% ff[V1 < 0.3][, Country]] %>%
+  .[, .(Country, Surface_fraction, Sprinkler_fraction, Drip_fraction, IFT)]
+
+
+## ----unc_analysis, cache=TRUE, dependson="extract_output"------------------------------------------------
+
+# PLOT UNCERTAINTY ------------------------------------------------------------------
 
 gg <- list()
 for (i in 1:length(list_continents)) {
@@ -604,14 +662,14 @@ for (i in 1:length(list_continents)) {
 }
 
 
-## ----merge_plot_unc, cache=TRUE, dependson="unc_analysis", fig.height=6.4, fig.width=5.2, dev = "pdf"---------
+## ----merge_plot_unc, cache=TRUE, dependson="unc_analysis", fig.height=6.4, fig.width=5.2, dev = "pdf"----
 
-# MERGE PLOTS ----------------------------------------------------------------------
+# MERGE PLOTS -----------------------------------------------------------------------
 
 gg
 
 
-## ----unc_analysis2, cache=TRUE, dependson="extract_output", fig.height=6.4, fig.width=5.2---------------------
+## ----unc_analysis2, cache=TRUE, dependson="extract_output", fig.height=6.4, fig.width=5.2----------------
 
 # PLOT UNCERTAINTY IN EACH IRRIGATION TECHNOLOGY -----------------------------------
 
@@ -643,7 +701,18 @@ for(i in 1:length(list_continents)) {
 gg
 
 
-## ----plot_rohwer_points, cache=TRUE, dependson="datasets", fig.height=6, fig.width=5.2------------------------
+
+uncertainty.dt[Approach == "Rohwer et al. 2007"][Continent %in% list_continents[[1]]] %>%
+  ggplot(.,aes(x = V1, y = fct_reorder(Country, V1), fill = IFT)) +
+  geom_density_ridges(scale = 2, alpha = 0.3) +
+  labs(x = "Irrigation efficiency", y = "") +
+  facet_wrap(~Continent, scales = "free") +
+  scale_x_continuous(breaks = pretty_breaks(n = 3),
+                     limits = c(0, 1)) +
+  theme_AP() +
+  theme(legend.position = "top")
+
+## ----plot_rohwer_points, cache=TRUE, dependson="datasets", fig.height=6, fig.width=5.2-------------------
 
 # PLOT ROHWER ET AL.'S IRRIGATION EFFICIENCY VALUES --------------------------------
 
@@ -666,7 +735,7 @@ for (i in 1:length(list_continents)) {
 dd
 
 
-## ----define_factor_unc, cache=TRUE, dependson="extract_output", fig.height=1.5, fig.width=5.6-----------------
+## ----define_factor_unc, cache=TRUE, dependson="extract_output", fig.height=1.5, fig.width=5.6------------
 
 # CALCULATE THE UNCERTAINTY IN THE RANGES -------------------------------------------
 
@@ -691,7 +760,7 @@ factor_unc %>%
   print()
 
 
-## ----functions_isimip, cache=TRUE-----------------------------------------------------------------------------
+## ----functions_isimip, cache=TRUE------------------------------------------------------------------------
 
 # FUNCTIONS TO EXTRACT DATA FROM .NC FILES -----------------------------------------
 
@@ -747,7 +816,7 @@ open_nc_files <- function(file, dname, selected.years, vec) {
 }
 
 
-## ----read_nc, cache=TRUE, dependson="functions_isimip"--------------------------------------------------------
+## ----read_nc, cache=TRUE, dependson="functions_isimip"---------------------------------------------------
 
 # READ IN NC FILES -----------------------------------------------------------------
 
@@ -770,7 +839,7 @@ isimip.dt <- mclapply(files, function(x)
   mc.cores = detectCores() * 0.75)
 
 
-## ----corrective_lpjml, cache=TRUE-----------------------------------------------------------------------------
+## ----corrective_lpjml, cache=TRUE------------------------------------------------------------------------
 
 # EXTRACT CORRECTIVE COEFFICIENTS FOR IRRIGATION EFFICIENCY FOR LPJML -------------
 
@@ -789,7 +858,7 @@ lpjml_efficiencies <- cbind(Country, da) %>%
   .[, .(Ep = mean(V3)), Country]
 
 
-## ----arrange_nc, cache=TRUE, dependson=c("read_nc", "corrective_lpjml")---------------------------------------
+## ----arrange_nc, cache=TRUE, dependson=c("read_nc", "corrective_lpjml")----------------------------------
 
 # ARRANGE NC FILES ------------------------------------------------------------------
 
@@ -810,7 +879,7 @@ isimip.dt <- rbind(isimip.dt[!Model == "LPJmL"], lpjml_harmonized)
 fwrite(isimip.dt, "isimip.dt")
 
 
-## ----merge_isimip_data, cache.lazy = FALSE, dependson=c("arrange_nc", "extract_output")-----------------------
+## ----merge_isimip_data, cache.lazy = FALSE, dependson=c("arrange_nc", "extract_output")------------------
 
 # MERGE UNCERTAINTY IN EP WITH ISIMIP DATA ------------------------------------------
 
@@ -824,76 +893,151 @@ tmp.dt <- melt(full.dt, measure.vars = names.isimip, variable.name = "Model",
                value.name = "IWW_corrected")
 ghm.large <- melt(ghm.dt, measure.vars = names.isimip, variable.name = "Model",
      value.name = "IWW")
-gm.uncertainty <- tmp.dt[, .(min = min(IWW_corrected), max = max(IWW_corrected)), 
+gm.uncertainty <- tmp.dt[, .(min = min(IWW_corrected), max = max(IWW_corrected)),
                          .(Country, Continent, Model)]
 gm.dt <- merge(ghm.large, gm.uncertainty)
 
 
-## ----plot_unc_merge, cache=TRUE, dependson="merge_isimip_data", fig.height=4, fig.width=5, dev = "pdf"--------
+## ----climate_uncertainties, cache=TRUE-------------------------------------------------------------------
 
-# PLOT UNCERTAINTY IN EP WITH ISIMIP DATA --------------------------------------------
+# READ IN FILES ON CLIMATE CHANGE UNCERTAINTY (2050) -------------------------------
 
-countries_list <- c("Egypt", "Sudan", "South Africa", "Morocco", "Madagascar", 
-                    "United States", "Mexico", "Brazil", "Chile", "Peru", 
-                    "India", "China", "Pakistan", "Iran", "Indonesia", 
+files <- list(
+  "watergap2_miroc5_ewembi_rcp85_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "watergap2_miroc5_ewembi_rcp60_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "watergap2_miroc5_ewembi_rcp45_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "watergap2_miroc5_ewembi_rcp26_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "lpjml_miroc5_ewembi_rcp85_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "lpjml_miroc5_ewembi_rcp60_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "lpjml_miroc5_ewembi_rcp26_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "pcr-globwb_miroc5_ewembi_rcp60_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "pcr-globwb_miroc5_ewembi_rcp26_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "h08_miroc5_ewembi_rcp85_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "h08_miroc5_ewembi_rcp60_2005soc_co2_pirrww_global_monthly_2006_2099.nc",
+  "h08_miroc5_ewembi_rcp26_2005soc_co2_pirrww_global_monthly_2006_2099.nc"
+)
+
+vecs <- 1:((2099 - 2005) * 12)
+vec <- split(vecs, ceiling(seq_along(vecs) / 12))
+names(vec) <- 2006:2099
+dname <- "pirrww"
+selected.years <- as.character(seq(2030, 2050, 10))
+
+# Read in datasets
+isimip.climate <- mclapply(
+  files, function(x)
+    open_nc_files(file = x, dname = dname, selected.years = selected.years, vec = vec),
+  mc.cores = detectCores() * 0.75
+)
+
+
+## ----climate_uncertainties_arrange, cache=TRUE, dependson="climate_uncertainties"------------------------
+
+# ARRANGE DATASETS -----------------------------------------------------------------
+
+ghms <- c(rep("WaterGap", times = 4), rep("LPJmL", times = 3), rep("PCR-GLOBWB", times = 2), rep("H08", times = 3))
+climate_scenario <- c(85, 60, 45, 26, 85, 60, 26, 60, 26, 85, 60, 26)
+names.isimip <- paste(ghms, climate_scenario, sep = "/")
+
+# Name the slots
+names(isimip.climate) <- names.isimip
+
+for(i in names(isimip.climate)) {
+  names(isimip.climate[[i]]) <- selected.years
+}
+
+# Arrange data
+isimip.climate.dt <- lapply(isimip.climate, function(x) rbindlist(x, idcol = "Year")) %>%
+  rbindlist(., idcol = "Model") %>%
+  .[!Continent == "Oceania"] %>%
+  separate(., "Model", c("Model", "Climate scenario"), "/") %>%
+  na.omit() %>%
+  .[Year == 2050]
+
+# Export
+fwrite(isimip.climate.dt, "isimip.climate.dt.csv")
+
+
+## ----plot_unc_comparison, cache=TRUE, dependson=c("merge_isimip_data", "climate_uncertainties_arrange"), dev = "pdf", fig.height=4.2, fig.width=4.5----
+
+# PLOT RANGES OF STRUCTURAL UNCERTAINTY AND RANGES OF
+# STRUCTURAL UNCERTAINTY + UNCERTAINTY IN IRRIGATION EFFICIENCY +
+# UNCERTAINTY IN CLIMATE CHANGE ----------------------
+
+countries_list <- c("Egypt", "Sudan", "South Africa", "Morocco", "Madagascar",
+                    "United States", "Mexico", "Brazil", "Chile", "Peru",
+                    "India", "China", "Pakistan", "Iran", "Indonesia",
                     "Italy", "Spain", "France", "Ukraine", "Romania")
-
-gm.dt[Country %in% countries_list] %>%
-  ggplot(., aes(reorder(Country, IWW), IWW, color = Model)) +
-  geom_point(position = position_dodge(0.7)) +
-  geom_errorbar(aes(ymin = min,
-                    ymax = max),
-                position = position_dodge(0.7)) +
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10 ^ (2 * x)),
-                labels = trans_format("log10", math_format(10 ^ .x))) +
-  scale_color_discrete(name = "GM") +
-  labs(y = expression(paste("Irrigation water withdrawal ", " ", "(", 10^9, m^3/year, "", ")")),
-       x = "") +
-  facet_wrap(~Continent, scales = "free_y") +
-  coord_flip() +
-  theme_AP()
-
-
-## ----plot_unc_comparison, cache=TRUE, dependson=c("merge_isimip_data", "plot_unc_merge"), dev = "pdf", fig.height=3.5, fig.width=4.5----
-
-# PLOT RANGES OF STRUCTURAL UNCERTAINTY AND RANGES OF 
-# STRUCTURAL UNCERTAINTY + UNCERTAINTY IN IRRIGATION EFFICIENCY --------------------
 
 range.gm <- gm.dt %>%
   .[, .(min = min(IWW, na.rm = TRUE), max = max(IWW, na.rm = TRUE)), .(Country, Continent)] %>%
-  .[, Approach:= "WaterGap, LPJmL, H08, PCR-GLOBWB"]
+  .[, Approach:= "GM"]
 
 range.study <- gm.dt %>%
   .[, .(min = min(min, na.rm = TRUE), max = max(max, na.rm = TRUE)), .(Country, Continent)] %>%
-  .[, Approach:= "WaterGap, LPJmL, H08, PCR-GLOBWB \n + uncertainty in irrigation efficiency"]
+  .[, Approach:= "GM + uncertainty in irrigation efficiency"]
 
-rbind(range.gm, range.study) %>%
+range.climate <- isimip.climate.dt %>%
+  .[, .(min = min(Water.Withdrawn), max = max(Water.Withdrawn)), .(Country, Continent)] %>%
+  .[, Approach:= "GM + uncertainty in climate change"]
+
+all.uncertainties <- rbind(range.gm, range.study, range.climate) %>%
+  .[, mean:= (min + max) / 2]
+
+all.uncertainties[all.uncertainties == 0] <- NA
+
+vec1 <- all.uncertainties[Approach == "GM", Country]
+vec2 <- all.uncertainties[Approach == "GM + uncertainty in climate change", Country]
+vec3 <- all.uncertainties[Approach == "GM + uncertainty in irrigation efficiency", Country]
+
+common_countries <- Reduce(intersect, list(vec1, vec2, vec3))
+
+all.uncertainties %>%
   .[Country %in% countries_list] %>%
-  .[, mean:= (min + max) / 2] %>%
   ggplot(., aes(reorder(Country, mean), mean, color = Approach)) +
   geom_errorbar(aes(ymin = min,
                     ymax = max),
                 position = position_dodge(0.7)) +
   scale_y_log10(breaks = trans_breaks("log10", function(x) 10 ^ (2 * x)),
                 labels = trans_format("log10", math_format(10 ^ .x))) +
-  scale_color_manual(name = "GM", values = wes_palette("Royal1")) +
+  scale_color_manual(name = "GMs", values = wes_palette("Darjeeling1")) +
   labs(y = expression(paste("Irrigation water withdrawal ", " ", "(", 10^9, m^3/year, "", ")")),
        x = "") +
   facet_wrap(~Continent, scales = "free_y") +
   coord_flip() +
   theme_AP() +
-  guides(color = guide_legend(nrow = 2, byrow = TRUE))
+  guides(color = guide_legend(nrow = 3, byrow = TRUE))
 
 
-## ----plot_unc_comparison_complete, cache=TRUE, dependson=c("merge_isimip_data", "plot_unc_merge"), fig.height=6.4, fig.width=5.2----
+# COMPARE UNCERTAINTY RANGES -------------------------------------------------------
+all.uncertainties[, range:= max - min]
+dd <- dcast(all.uncertainties,Country + Continent ~ Approach, value.var = "range") %>%
+  na.omit() %>%
+  .[, maxCol:= max.col(.[, 3:5], ties.method='first')]
 
-# PLOT RANGES OF STRUCTURAL UNCERTAINTY AND RANGES OF 
-# STRUCTURAL UNCERTAINTY + UNCERTAINTY IN IRRIGATION EFFICIENCY (COMPLETE) ---------
+lapply(1:3, function(x) dd[maxCol == x])
+
+
+
+
+
+
+indx <- max.col(dd[, 3:5], ties.method='first')
+dd[cbind(1:nrow(dd), indx)]
+
+dd[, maxCol := which.max(.SD), pmixd]
+
+
+
+## ----plot_unc_comparison_complete, cache=TRUE, dependson=c("merge_isimip_data", "plot_unc_merge"), fig.height=7, fig.width=5.2, dev = "pdf", message=FALSE, warning=FALSE----
+
+# PLOT RANGES OF STRUCTURAL UNCERTAINTY AND RANGES OF
+# STRUCTURAL UNCERTAINTY + UNCERTAINTY IN IRRIGATION EFFICIENCY (COMPLETE) ----------
 
 dd <- list()
 for (i in 1:length(list_continents)) {
-  dd[[i]] <- rbind(range.gm, range.study) %>%
-    .[, mean:= (min + max) / 2] %>%
+  dd[[i]] <- all.uncertainties %>%
+    .[Country %in% common_countries] %>%
     .[Continent %in% list_continents[[i]]] %>%
     ggplot(., aes(reorder(Country, mean), mean, color = Approach)) +
     geom_errorbar(aes(ymin = min,
@@ -901,26 +1045,26 @@ for (i in 1:length(list_continents)) {
                   position = position_dodge(0.7)) +
     scale_y_log10(breaks = trans_breaks("log10", function(x) 10 ^ (2 * x)),
                   labels = trans_format("log10", math_format(10 ^ .x))) +
-    scale_color_manual(name = "GM", values = wes_palette("Royal1")) +
+    scale_color_manual(name = "GM", values = wes_palette("Darjeeling1")) +
     labs(y = expression(paste("Irrigation water withdrawal ", " ", "(", 10^9, m^3/year, "", ")")),
          x = "") +
     facet_wrap(~Continent, scales = "free_y") +
     coord_flip() +
     theme_AP() +
-    guides(color = guide_legend(nrow = 2, byrow = TRUE))
+    guides(color = guide_legend(nrow = 3, byrow = TRUE))
 }
 
 dd
 
 
-## ----print_ranges, cache=TRUE, dependson="plot_unc_comparison"------------------------------------------------
+## ----print_ranges, cache=TRUE, dependson="plot_unc_comparison"-------------------------------------------
 
 # PRINT RANGES ---------------------------------------------------------------------
 
 # print(range.study, n = Inf)
 
 
-## ----distributions, cache=TRUE, dependson="run_model", fig.height=3, fig.width=4, dev = "pdf"-----------------
+## ----distributions, cache=TRUE, dependson="run_model", fig.height=3, fig.width=4, dev = "pdf"------------
 
 # SAMPLE MATRIX DISTRIBUTIONS -----------------------------------------------------
 
@@ -947,7 +1091,7 @@ melt(mat, measure.vars = colnames(mat)) %>%
   theme_AP()
 
 
-## ----extract_sobol, cache=TRUE, dependson=c("run_model", "extract_output")------------------------------------
+## ----extract_sobol, cache=TRUE, dependson=c("run_model", "extract_output")-------------------------------
 
 # EXTRACT SOBOL' INDICES -----------------------------------------------------------
 
@@ -966,7 +1110,7 @@ for(i in names(tmp.ift)) {
 }
 
 
-## ----plot_sobol, cache=TRUE, dependson=c("extract_sobol"), fig.height=2, fig.width=5.5------------------------
+## ----plot_sobol, cache=TRUE, dependson=c("extract_sobol"), fig.height=2, fig.width=5.5-------------------
 
 # PLOT SOBOL' INDICES ----------------------------------------------------------------
 
@@ -987,7 +1131,6 @@ rbind(tmp[IFT == "Mixed"], tmp2) %>%
   ggplot(., aes(parameters, mean, fill = sensitivity), color = black) +
   geom_bar(stat = "identity", position = position_dodge(0.6), color = "black") +
   geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd), position = position_dodge(0.6)) +
-  scale_x_discrete(labels = label_facets) +
   scale_fill_discrete(name = "Sensitivity", labels = c("$S_i$", "$T_i$")) +
   labs(x = "", y = "Sobol' indices") +
   facet_grid(~IFT, space = "free_x", scale = "free_x") +
@@ -1005,15 +1148,21 @@ jager.ind <- rbindlist(jager.tmp, idcol = "Country") %>%
   .[, Continent:= countrycode(.[, Country],
                              origin = "country.name",
                              destination = "continent")] %>%
-  .[, parameters:= ifelse(parameters == "Ea_surf", "E[a[su]]",
-                         ifelse(parameters == "Ec_surf", "E[c[su]]",
-                                ifelse(parameters == "Ea_sprinkler", "E[a[sp]]",
-                                       ifelse(parameters == "Ec_sprinkler", "E[c[sp]]",
-                                              ifelse(parameters == "Ea_micro", "E[a[mi]]",
-                                                     ifelse(parameters == "Ec_micro", "E[c[mi]]",
+  .[, parameters:= ifelse(parameters == "Ea_surf", "E[a[s]]",
+                         ifelse(parameters == "Ec_surf", "E[c[s]]",
+                                ifelse(parameters == "Ea_sprinkler", "E[a[p]]",
+                                       ifelse(parameters == "Ec_sprinkler", "E[c[p]]",
+                                              ifelse(parameters == "Ea_micro", "E[a[m]]",
+                                                     ifelse(parameters == "Ec_micro", "E[c[m]]",
                                                             ifelse(parameters == "Proportion_large", "f[L]", parameters)))))))]
 
 Continent_vector <- c("Africa", "Americas", "Asia", "Europe")
+
+
+
+
+rbindlist(jager.tmp, idcol = "Country")[parameters == "f_L"]
+
 
 lapply(Continent_vector, function(x)
   ggplot(jager.ind[Continent == x], aes(parameters, original, fill = sensitivity), color = black) +
@@ -1025,8 +1174,8 @@ lapply(Continent_vector, function(x)
     scale_y_continuous(breaks = pretty_breaks(n = 3)) +
     facet_wrap(~Country) +
     theme_AP() +
-    theme(strip.text.x = element_text(size = 6), 
+    theme(strip.text.x = element_text(size = 6),
           axis.text.x = element_text(size = 6)) +
     ggtitle(x)
-)
+)[[2]]
 
