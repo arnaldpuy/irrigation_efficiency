@@ -23,9 +23,9 @@ We include all `.csv` datasets needed to replicate our work. The `.nc` files wei
 
 `ranges_efficiencies.csv`: produced from Clemmens and Molden 2007, Van Halsema and Vincent 2012, Rohwer et al. 2007, Rogers et al. 1997 and Brouwer et al. 1989.
 
-`efficiency_10.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 10 km^2 (1,000 ha).
+`efficiency_10.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 10 km<sup>2</sup> (1,000 ha).
 
-`efficiency_30.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 30 km^2 (3,000 ha).
+`efficiency_30.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 30 km<sup>2</sup> (3,000 ha).
 
 `efficiency_100.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 100 km<sup>2</sup> (10,000 ha).
 
