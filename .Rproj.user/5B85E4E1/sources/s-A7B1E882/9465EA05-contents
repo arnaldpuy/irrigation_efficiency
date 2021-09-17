@@ -1117,25 +1117,24 @@ lapply(1:3, function(x) dd[maxCol == x])
 # SAMPLE MATRIX DISTRIBUTIONS -----------------------------------------------------
 
 # Define labels
-label_facets <- c("Ea_surf" = "$E_{a_{su}}$",
-                  "Ec_surf" = "$E_{c_{su}}$",
-                  "Ea_sprinkler" = "$E_{a_{sp}}$",
-                  "Ec_sprinkler" = "$E_{c_{sp}}$",
-                  "Ea_micro" = "$E_{a_{mi}}$",
-                  "Ec_micro" = "$E_{c_{mi}}$",
-                  "Proportion_large" = "$f_L$",
+label_facets <- c("Ea_surf" = "$E_{a_{s}}$",
+                  "Ec_surf" = "$E_{c_{s}}$",
+                  "Ea_sprinkler" = "$E_{a_{p}}$",
+                  "Ec_sprinkler" = "$E_{c_{p}}$",
+                  "Ea_micro" = "$E_{a_{m}}$",
+                  "Ec_micro" = "$E_{c_{m}}$",
                   "m" = "$m$",
                   "r_L" = "$r_L$")
 
 mat <- data.table(full_sample_matrix(IFT = "Jager", Country = "Spain")$matrix)
-mat <- mat[, Proportion_large:= NULL]
 
-melt(mat, measure.vars = colnames(mat)) %>%
+
+melt(mat[, 1:8], measure.vars = colnames(mat)[-c(9,10)]) %>%
   ggplot(., aes(value)) +
   geom_histogram() +
   labs(x = "Value", y = "Counts") +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
-  facet_wrap(~variable) +
+  facet_wrap(~variable, labeller = labeller(type = label_parsed)) +
   theme_AP()
 
 
