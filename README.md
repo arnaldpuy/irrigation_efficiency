@@ -27,9 +27,7 @@ We include all `.csv` datasets needed to replicate our work. The `.nc` files wei
 
 `efficiency_30.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 30 km^2 (3,000 ha).
 
-`efficiency_100.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 100 km^2 (10,000 ha).
-
-
+`efficiency_100.csv`: The proportion of large-scale irrigated areas in each of the four irrigated area maps when the threshold used to identify large-scale irrigated areas is 100 km<sup>2 (10,000 ha).
 
 ## Bibliography
 M. Bos and J. Nugteren. On Irrigation Efficiencies. Tech. rep. Wageningen: International Institute for Land Recamation and Improvement / ILRI, 1990.
