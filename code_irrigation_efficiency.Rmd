@@ -1302,9 +1302,11 @@ ggdraw(add_sub(final, "Sobol' indices", vpadding = grid::unit(0,"lines"),
 
 ```
 
+# Session information
+
 ```{r system}
 
-# SESSION INFORMATION -------------------------------------------------------------
+# SESSION INFORMATION ------------------------------------------------------------
 
 sessionInfo()
 
