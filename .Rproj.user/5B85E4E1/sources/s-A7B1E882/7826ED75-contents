@@ -1,0 +1,1052 @@
+---
+title: "Detection of sand encroachment patterns in desert oases. The case of Erg Chebbi (Morocco)"
+subtitle: "R code"
+author: "Arnald Puy"
+date: "May 2018"
+bibliography: /Users/arnald/Documents/arnald/bibtex/LATEX_ErgChebbi.bib
+link-citations: true
+header-includes:
+   - \usepackage{siunitx}
+output:
+  pdf_document: default
+  html_document: default
+  fig_caption: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Preliminary steps
+
+```{r, results="hide", message=FALSE, warning=FALSE}
+
+# Define function to read in all required libraries in one go:
+loadPackages <- function(x) {
+  for(i in x) {
+    if(!require(i, character.only = TRUE)) {
+      install.packages(i, dependencies = TRUE)
+      library(i, character.only = TRUE)
+    }
+  }
+}
+
+# Load all required libraries:
+loadPackages(c("rgdal", "MASS", "gtools", "stringr", "tidyverse", "plotKML",
+               "forcats", "readxl", "mvoutlier", "grid", "IDPmisc", "RColorBrewer",
+               "compositions", "factoextra", "FactoMineR", "data.table", "lubridate",
+               "cowplot", "scales", "BEST", "knitr", "tikzDevice", "kableExtra", "EMMAgeo"))
+
+# Define function to read in all excel spreadsheets in one go:
+readAll <- function(name, tibble = FALSE) {
+  sheets <- excel_sheets(name)
+  df <- lapply(sheets, function(y) read_excel(name, 
+                                             sheet = y))
+  if(!tibble) df <- lapply(df, as.data.frame)
+  names(df) <- sheets
+  df
+}
+```
+
+# Read in required datasets
+
+```{r, results="hide", message=FALSE, warning=FALSE, cache=TRUE}
+
+# Read in all excel spreadsheets:
+df <- readAll("ergchebbi_psd.xlsx") 
+
+# Read in shape files:
+
+# Shape file for Hassilabiad oasis
+has_border<-readOGR("hassilabiad_border.shp", 
+                    "hassilabiad_border")
+proj4string(has_border)=CRS("+init=epsg:4326")
+
+# Data frame for Hassilabiad oasis shape file
+has_border2 <- fortify(has_border) %>%
+  mutate(location = "Hassilabiad")
+
+# Shape file for Merzouga oasis
+mer_border<-readOGR("merzouga_border.shp", 
+                    "merzouga_border")
+proj4string(mer_border)=CRS("+init=epsg:4326")
+
+# Data frame for Merzouga oasis shape file
+mer_border2 <- fortify(mer_border) %>%
+  mutate(location = "Merzouga")
+
+# Merge data frames
+shapes <- bind_rows(has_border2, 
+                    mer_border2)
+```
+
+# End-Member Modelling Analysis (EMMA)
+
+The code was adapted from @Adler2014. 
+
+## Prepare datasets
+
+```{r}
+# Read emma data
+df$emma <- read_excel("ergchebbi_psd.xlsx", 
+                      sheet = "emma", 
+                      col_names = FALSE) %>%
+  data.frame()
+
+# Conversion of the data-frame into a matrix
+emma_mat <- as.matrix(df$emma)
+
+# Matrix with only data
+emma_dat <- emma_mat[3:104, 2:118]
+
+# Vector with micrometer scale
+# create vector with micrometer-scale of the measured samples 
+# (channel diameter) and convert it to phi scale
+emma_dia <- as.vector(emma_mat[2, 2:118])
+emma_dia2 <- emma_dia[1:105] 
+```
+
+## Generate parameters
+
+```{r consistency, cache=TRUE}
+# Reescale data matrix to a constant sum
+c <- 100
+X <- emma_dat / apply(emma_dat, 1, sum) * c
+
+# Remove columns with 0s
+X <- X[,colSums(X) > 0]
+X <- X / rowSums(X) * c 
+
+# Generate the weight transformation vector (lw)
+# Generate the vector for the EMs (q)
+
+lw.test <- seq(0, 0.5, length.out = 150)
+test.l(X = X, l = lw.test)  
+lw.min <- 0 # lowest lw
+lw.max <- 0.033 # highest lw
+lw.length <- 100 # length of lw vector
+
+for(i in 1:20) {
+  lw.test <- test.l (X = X,
+                     l = seq(from = lw.min,
+                             to = lw.max))
+  lw.new <- seq(lw.min, lw.max, length.out = lw.length)[c(
+    lw.test$step, lw.test$step + 1)]
+  lw.min <- lw.new[1]
+  lw.max <- lw.new[2]
+}
+
+# Sequence vector lw using the lower and
+# upper weight transformation limits of
+# lw.new
+lw <- seq(from = 0,           
+          to = lw.max,
+          length.out = 100)
+
+# Define sequence vector (q) and number of EMs
+q <- seq(from = 2, 
+          to = 12)
+
+# Check data consistency
+check.data(X = X, 
+           q = q, 
+           l = lw, 
+           c = c, 
+           invisible = TRUE)
+
+```
+
+## Define EMs & extract robust EMs
+
+```{r robustEM, cache=TRUE, dev="tikz", fig.height=3, fig.width=5, fig.align="center"}
+# Determine minimum number of EMs (q.min) 
+L<- test.factors(X = X,
+                 l = lw,
+                 c = c, 
+                 plot = FALSE)
+
+q.min <- L$q.min
+
+# Determine maximum number of EMs (q.max)
+TP <- test.parameters(X = X,
+                      q = q,
+                      l = lw,
+                      c = c,
+                      rotation = "Varimax",
+                      plot = "mRt",       
+                      cex = 0.7,
+                      colour = rgb((1:7) / 7, 0.9, 0.2, 1))
+
+# Create vector with minimum and maximum number of EMs
+q.max <- TP$q.max
+q <- 3:4
+
+# Test data for robust EMs
+TR <- test.robustness(X = X,
+                      q = q,
+                      l = lw,
+                      ol_rej = 1,
+                      mRt_rej = 0.95,
+                      plot = FALSE)
+
+# illustrate mode positions as a stem-and-leave-plot
+stem(TR$modes, scale = 2)
+
+# Define lower and upper limits within which
+# robust EMs have clustered mode positions
+get.limits(TR$loadings) # double-check identification of limits
+l.min <- c(82, 89, 91, 94) # min value of EM1, EM2...
+l.max <- c(84.5, 90, 92, 96) # max value of EM1, EM2...
+limits <- cbind(l.min, l.max)
+
+# # Extract EM loadings as robust EMs
+rEM <- robust.EM(Vqsn = TR$Vqsn, 
+                 limits = limits, 
+                 Vqn = TR$Vqn,
+                 plot = TRUE, 
+                 ylab = "Frequency",
+                 xlab = expression(paste("Classes", sep = "")),
+                 legend = "topleft",
+                 median = FALSE, 
+                 main = "End-member loadings") 
+
+# Extract robust EM loadings
+Vqn.mean <- rEM$Vqn.mean
+
+# Extract robust EM sd
+Vqn.sd <- rEM$Vqn.sd
+
+# Separate the residual EM loadings (unexplained variance = noise) 
+# from the modelled EM loadings
+Vqn.res <- residual.EM(Vqn.mean)
+```
+
+## Final model
+
+```{r finalEM, cache=TRUE, dependson="robustEM", dev="tikz", fig.height=6, fig.width=8, sanitize=TRUE}
+# Extract robust and normalized EM loadings
+Vqn.rob.res <- rbind(Vqn.mean, Vqn.res)
+
+# Create final model
+EM.rob <- EMMA(X = X,
+               q = 4,
+               c = c,
+               l = lw.max,
+               Vqn = Vqn.rob.res,
+               EM.ID = c("EM 1", "EM 2", "EM 3", "EM 4"),
+               rotation = "Varimax",
+               plot = TRUE,
+               legend ="topleft",
+               xlab = c(expression(paste("Channel (", No, ")",
+                                         sep = "")),
+                        expression(paste("Sample (", depth, ")",
+                                         sep = ""))))
+```
+
+## Prepare EMMA data frames for ggplot2
+
+```{r, results="hide", message=FALSE, warning=FALSE, sanitize=TRUE, cache=TRUE}
+# Create data frame with R2 classwise values and EM loadings
+EM_plots <- as.data.frame(cbind(EM.rob$Rn, emma_dia2,
+                                t(EM.rob$loadings))) %>%
+  rename(classwise = V1, 
+         microns = emma_dia2, 
+         EM1 = "EM 1", 
+         EM2 = "EM 2",
+         EM3 = "EM 3", 
+         EM4 = "EM 4")
+
+# Create data frame with R2 rowwise values
+EM_plots2 <- EM.rob$Rm %>%
+  data.frame() %>%
+  mutate(samples = seq(1, length(.), 1)) %>%
+  rename(rowwise = ".")
+
+# Create data frame with mean and quantile values
+# for EM loadings
+EMs <- rEM %>%
+  lapply(., function(x) t(x)) %>%
+  .[c("Vqsn.mean", "Vqsn.qt1", "Vqsn.qt2")] %>%
+  lapply(., function(x) data.frame(x)) %>%
+  lapply(., cbind, emma_dia2) %>%
+  lapply(., function(x) rename(x, EM1 = X1, 
+                               EM2 = X2, 
+                               EM3 = X3, 
+                               EM4 = X4, 
+                               channel.d = emma_dia2)) %>%
+  lapply(., function(x) gather(x, EMs, Value, EM1:EM4)) %>%
+  rbindlist(., idcol = TRUE) %>%
+  rename(Group = .id) %>%
+  split(., list(.$Group, .$EMs)) %>%
+  rbindlist(., idcol = TRUE) %>%
+  rename(Sample = .id)
+
+# Function to arrange data frames for
+# oases and sediment sources
+arrange.df <- function(loc, tag) {
+  df <- df$volume %>%
+    filter(location == loc) %>%
+    gather(Sample, Value, -c(channel.d, location)) %>%
+    mutate(Sample = str_replace(.$Sample, "X", tag)) %>%
+    rename(Group = location) %>%
+    filter(!is.na(Value)) %>%
+    mutate_if(is.character, as.factor) %>%
+    select(Sample, channel.d, Group, Value)
+  return(df)
+}
+
+# Arrange data frames
+colnames(df$volume) <- c("channel.d", "location", paste0("X", 1:51))
+
+Dune.Crests <- arrange.df("Dune.crests", "Y")
+Hammada <- arrange.df("Hammada", "Z")
+Hammada.Fluvial <- arrange.df("Hammada.Fluvial", "W")
+Ziz <- arrange.df("Ziz.Valley", "P")
+Mer <- arrange.df("Merzouga", "T")
+Has <- arrange.df(loc = "Hassilabiad", "B")
+
+Oases <- bind_rows(Has, Mer) %>%
+  mutate(EMs = "NO")
+
+EMs2 <- EMs %>%
+  bind_rows(Oases) %>%
+  mutate_if(is.character, as.factor)
+
+Final <- bind_rows(Dune.Crests,Hammada, Ziz) %>%
+  mutate_if(is.character, as.factor)
+
+```
+
+# Figures
+
+## Figure 2
+
+```{r wind_data, cache=TRUE}
+# Read in wind data
+df.wind <- read.table("JHB_meteo_15min.tab.tsv", 
+                      header = TRUE, 
+                      sep = "\t") %>%
+  select(Date.Time, ff..m.s., dd..deg., dd.std.dev.... ) %>%
+  rename(speed = ff..m.s., 
+         direction = dd..deg., 
+         sd = dd.std.dev....) %>%
+  mutate(Date.Time = gsub("T", " ", .$Date.Time), 
+         Date.Time = ymd_hm(.$Date.Time), 
+         Year = year(Date.Time), 
+         Month = month(Date.Time, 
+                       label = TRUE), 
+         Hour = hour(Date.Time)) %>%
+  # Exclude NA values
+  NaRV.omit(.)
+```
+
+Use plot.windrose function from Andy Clifton, which can be found [here](https://stackoverflow.com/questions/17266780/wind-rose-with-ggplot-r)
+
+```{r windrose_function, cache=TRUE}
+plot.windrose <- function(data,
+                          spd,
+                          dir,
+                          spdres = 2,
+                          dirres = 22.5,
+                          spdmin = 2,
+                          spdmax = 20,
+                          spdseq = NULL,
+                          palette = "YlGnBu",
+                          countmax = NA,
+                          debug = 0){
+  
+  # Look to see what data was passed in to the function
+  if (is.numeric(spd) & is.numeric(dir)){
+    # assume that we've been given vectors of the speed and direction vectors
+    data <- data.frame(spd = spd,
+                       dir = dir)
+    spd = "spd"
+    dir = "dir"
+  } else if (exists("data")){
+    # Assume that we've been given a data frame, and the name of the speed 
+    # and direction columns. This is the format we want for later use.    
+  }  
+  
+  # Tidy up input data ----
+  n.in <- NROW(data)
+  dnu <- (is.na(data[[spd]]) | is.na(data[[dir]]))
+  data[[spd]][dnu] <- NA
+  data[[dir]][dnu] <- NA
+  
+  # figure out the wind speed bins ----
+  if (missing(spdseq)){
+    spdseq <- seq(spdmin,spdmax,spdres)
+  } else {
+    if (debug >0){
+      cat("Using custom speed bins \n")
+    }
+  }
+  # get some information about the number of bins, etc.
+  n.spd.seq <- length(spdseq)
+  n.colors.in.range <- n.spd.seq - 1
+  
+  # create the color map
+  spd.colors <- colorRampPalette(brewer.pal(min(max(3,
+                                                    n.colors.in.range),
+                                                min(9,
+                                                    n.colors.in.range)),                                               
+                                            palette))(n.colors.in.range)
+  
+  if (max(data[[spd]],na.rm = TRUE) > spdmax){    
+    spd.breaks <- c(spdseq,
+                    max(data[[spd]],na.rm = TRUE))
+    spd.labels <- c(paste(c(spdseq[1:n.spd.seq-1]),
+                          '-',
+                          c(spdseq[2:n.spd.seq])),
+                    paste(spdmax,
+                          "-",
+                          max(data[[spd]],na.rm = TRUE)))
+    spd.colors <- c(spd.colors, "grey50")
+  } else{
+    spd.breaks <- spdseq
+    spd.labels <- paste(c(spdseq[1:n.spd.seq-1]),
+                        '-',
+                        c(spdseq[2:n.spd.seq]))    
+  }
+  data$spd.binned <- cut(x = data[[spd]],
+                         breaks = spd.breaks,
+                         labels = spd.labels,
+                         ordered_result = TRUE)
+  
+  # figure out the wind direction bins
+  dir.breaks <- c(-dirres/2,
+                  seq(dirres/2, 360-dirres/2, by = dirres),
+                  360+dirres/2)  
+  dir.labels <- c(paste(360-dirres/2,"-",dirres/2),
+                  paste(seq(dirres/2, 360-3*dirres/2, by = dirres),
+                        "-",
+                        seq(3*dirres/2, 360-dirres/2, by = dirres)),
+                  paste(360-dirres/2,"-",dirres/2))
+  # assign each wind direction to a bin
+  dir.binned <- cut(data[[dir]],
+                    breaks = dir.breaks,
+                    ordered_result = TRUE)
+  levels(dir.binned) <- dir.labels
+  data$dir.binned <- dir.binned
+  
+  # Run debug if required ----
+  if (debug>0){    
+    cat(dir.breaks,"\n")
+    cat(dir.labels,"\n")
+    cat(levels(dir.binned),"\n")
+    
+  }  
+  
+  # create the plot ----
+  p.windrose <- ggplot(data = data,
+                       aes(x = dir.binned,
+                           fill = spd.binned
+                           ,y = (..count..)/sum(..count..)
+                       ))+
+    geom_bar() + 
+    scale_x_discrete(drop = FALSE,
+                     labels = c("N","NNE","NE","ENE", "E", 
+                                "ESE", "SE","SSE", 
+                                "S","SSW", "SW","WSW", "W", 
+                                "WNW","NW","NNW")) +
+    coord_polar(start = -((dirres/2)/360) * 2*pi) +
+    scale_fill_manual(name = "Wind Speed (m/s)", 
+                      values = spd.colors,
+                      drop = FALSE) +
+    theme(axis.title.x = element_blank()) + 
+    scale_y_continuous(labels = percent) +
+    labs(x = "Direction", 
+         y = "") +
+    theme_bw()
+  
+  # adjust axes if required
+  if (!is.na(countmax)){
+    p.windrose <- p.windrose +
+      ylim(c(0,countmax))
+  }
+  
+  # return the handle to the wind rose
+  return(p.windrose)
+}
+
+```
+
+Plot figure 2
+```{r fig2, dev="tikz", sanitize=TRUE, fig.align="center", cache=TRUE}
+plot.windrose(data = df.wind, 
+              spd = "speed", 
+              dir = "direction", 
+              spdseq = c(0, 2, 4, 6, 
+                         10, 15, 20)) +
+  facet_wrap(~Month)
+```
+
+## Figure 3
+```{r fig3, dev="tikz", cache=TRUE}
+# Create figure 3a
+a <- df$noxious %>%
+  group_by(factor) %>%
+  summarise(N = n()) %>%
+  mutate(factor = fct_recode(factor, 
+                             "Kids" = "kids",
+                             "Lack of manure" = "lack of manure",
+                             "Bugs" = "bugs",
+                             "Weeds" = "weeds",
+                             "Water stress" = "water stress",
+                             "Sandstorms" = "sandstorms")) %>%
+  ggplot(., aes(reorder(factor, N), N)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(x = "Factors", 
+       y = "Counts") +
+  theme_bw() +
+  theme(aspect.ratio = 1, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+
+# Create figure 3b
+# Reorder and reverse factor levels for months
+df$months$month <- factor(df$months$month, 
+                    month.name) 
+
+df$months$month <- fct_rev(df$months$month)
+
+b <- df$months %>%
+  ggplot(., aes(month, count)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(x = "Month", 
+       y = "Counts") +
+  theme_bw() +
+  theme(aspect.ratio = 1, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+
+# Merge plots
+plot_grid(a, b, ncol = 2, 
+          labels = "auto", 
+          vjust = 6)
+```
+
+
+## Figure 4
+```{r fig4, dev="tikz", sanitize=TRUE, cache=TRUE}
+# Create dataset with Merzouga and Hassilabiad samples
+df.psd <- df$psd %>%
+  filter(location == "Merzouga" | 
+           location == "Hassilabiad") %>%
+  droplevels() %>%
+  select(location, fsand:clay)
+
+# Close dataset and run compositional PCA
+df.out <- mvoutlier.CoDa(zeroreplace(acomp(df.psd[, c(2:9)]))) 
+df.pca <- princomp(df.out$ilrvariables)
+
+# Create figure 4a
+a <- fviz_pca_biplot(df.pca, 
+                     habillage = df.psd$location,
+                     addEllipses = TRUE,
+                     col.var = "red",
+                     label = "var") +
+  scale_color_brewer(palette = "Dark2") + 
+  ggtitle("") + 
+  theme_bw() + 
+  theme(aspect.ratio = 1, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = c(1, 1),
+        legend.justification = c(1, 1),
+        legend.box.just = c("top"),
+        legend.background = element_rect(fill = alpha("white", 0.1))) 
+
+# Create figure 4b
+b <- fviz_pca_ind(df.pca, 
+                  col.ind = "cos2") +
+  scale_color_gradient2(low = "white",
+                        mid = "blue", 
+                        high = "red", 
+                        midpoint = 0.50) + 
+  theme_bw() +
+  ggtitle("") +
+  theme(aspect.ratio = 1, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = c(1, 1), 
+        legend.justification = c(1, 1), 
+        legend.background = element_rect(fill = alpha("white", 0.1))) 
+
+# Merge plots
+plot_grid(a, b, ncol = 2, 
+          labels = "auto",
+          vjust = 6)
+```
+
+## Figure 5
+```{r fig5, dev="tikz", fig.width=4.6, fig.height=3.6, cache=TRUE, fig.align="center"}
+# Merge data from Hassilabiad and Merzouga to ilr variables
+df.ilr <- df$psd %>%
+  select(location, id, lon, lat) %>%
+  inner_join(df$ilr %>%
+               filter(location == "Hassilabiad" | 
+                        location == "Merzouga")) 
+
+# Plot figure 5
+ggplot() +
+  geom_polygon(data = shapes, 
+               aes(x = long, 
+                   y = lat, 
+                   group = location), 
+               fill = "darkgreen", 
+               alpha = 0.3) +
+  geom_point(data = df.ilr, 
+             aes(x = lon, 
+                 y = lat, 
+                 color = ilr.1, 
+                 group = location), 
+             size = 6) +
+  scale_size_continuous(guide = FALSE) +
+  scale_colour_gradient2(low = "black",
+                        high = "red", 
+                        mid = "white") +
+  scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  facet_wrap(~location, 
+             scales = "free") +
+  theme_bw() +
+  theme(aspect.ratio = 1.5, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(x = "Longitude", 
+       y = "Latitude")
+```
+
+## Figure 6
+```{r fig6, dev="tikz", fig.width=7, fig.height=9, cache=TRUE, sanitize=TRUE, message=FALSE, warning=FALSE}
+# Figure 6a
+a <- EM_plots %>%
+  ggplot(., aes(microns, classwise)) +
+  geom_point() + 
+  geom_line() +
+  scale_x_log10(breaks = 10 ^(0:3)) +
+  xlab("Grain size (microns)") + 
+  ylab(expression(paste(R^ 2))) + 
+  ggtitle("a") +
+  theme_bw() +
+  theme(aspect.ratio = 1/3,
+        plot.margin = unit(c(0, 0, -0.4, 0), "cm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        plot.title = element_text(size = 16, face = "bold"))
+
+# Figure 6b
+b <- EM_plots2 %>%
+  ggplot(., aes(samples, rowwise)) +
+  geom_point() + 
+  geom_line() +
+  xlab("Samples") + 
+  ylab(expression(paste(R^ 2))) + 
+  geom_vline(xintercept = 51.5, lty = 2) +
+  annotate("text", 
+           x = c(25, 75), 
+           y = 0.3, 
+           label = c("Merzouga", "Hassilabiad")) +
+  ggtitle("b") +
+  theme_bw() +
+  theme(aspect.ratio = 1/3,
+        plot.margin = unit(c(0, 0, -0.4, 0), "cm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        plot.title = element_text(size = 16, face = "bold"))
+
+# Figure 6c
+c <- EMs2 %>%
+  ggplot(., aes(channel.d, Value, 
+                color = EMs, 
+                group = Sample)) +
+  geom_line(aes(size = Group, 
+                alpha = EMs)) +
+  scale_x_log10(breaks = c(1, 10, 100, 1000)) +
+  scale_alpha_manual(values = c(1, 1, 1, 1, 1, 1), 
+                     guide = FALSE) +
+  scale_colour_manual(name = "End Members (EMs)", 
+                      labels = c("EM 1 (30 %)", "EM 2 (28 %)",
+                                 "EM 3 (25 %)", "EM 4 (16 %)"), 
+                      breaks = c("EM1", "EM2", "EM3", "EM4"),
+                      values = c("chocolate4", "chocolate1", 
+                                 "burlywood1", "gold3", "gray83", "gray83")) +
+  scale_size_manual(values = c(0.5, 0.5, 2, 0.5, 0.5), 
+                    breaks = c("EM1", "EM2", 
+                               "EM3", "EM4", "NO"), 
+                    guide = FALSE) +
+  labs(x = "Grain size (microns)", 
+       y = "Relative amounts (%)") +
+  ggtitle("c") +
+  theme_bw() +
+  theme(aspect.ratio = 1/2.5, 
+        plot.margin = unit(c(-1.7, 0, 0, 0), "cm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = c(0.15, 0.9),
+        legend.justification = c(0.15, 0.9),
+        plot.title = element_text(size = 16, face = "bold"))
+
+# Figure 6d
+d <- Final %>%
+  ggplot(., aes(channel.d, Value, 
+                group = rev(Sample), 
+                alpha = Group)) +
+  geom_line(aes(colour = Group, 
+                size = Group)) +
+  scale_x_log10(breaks = 10 ^(0:3)) +
+  scale_alpha_manual(values = c(1, 1, 1), 
+                     guide = FALSE) +
+  scale_colour_manual(name = "Sediment sources", 
+                      labels = c("Ziz Valley", "Hamada", "Dune crests"), 
+                      breaks = c("Ziz.Valley", "Hammada", "Dune.crests"),
+                      values = c("gold3", "chocolate1", "chocolate4")) +
+  scale_size_manual(name = "Sediment sources",
+                    values = c(0.5, 0.5, 0.5), 
+                    guide = FALSE) +
+  labs(x = "Grain size (microns)",  
+       y = "Relative amounts (%)") +
+  ggtitle("d") +
+  theme_bw() +
+  theme(aspect.ratio = 1/2.5,
+        plot.margin = unit(c(-0.8, 0, 0, 0), "cm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = c(0.15, 0.9),
+        legend.justification = c(0.15, 0.9), 
+        plot.title = element_text(size = 16, face = "bold")) 
+
+plot1 <- plot_grid(a, b, ncol = 2)
+plot_grid(plot1, c, d, 
+          ncol = 1)
+```
+
+## Figure 7
+
+```{r fig7, dev="tikz", cache=TRUE}
+# Read in sampling points
+gps <- readGPX("gps_points.gpx")
+gps <- gps$waypoints %>%
+  select(lon, lat, name) %>%
+  .[mixedorder(.$name), ] %>%
+  separate(., name, into = c("group", "id"), 
+           sep = "(?<=[A-Z])\\s+(?=[0-9])") %>%
+  mutate_at(vars(id), funs(as.numeric)) %>%
+  mutate_at(vars(group), funs(as.factor)) %>%
+  # Rename sampling groups
+  mutate(group = fct_recode(group, 
+                            Barchans = "CHE BA",
+                            Hammada = "HAM", 
+                            Hammada.Fluvial = "HAMF",
+                            Hassilabiad = "HAS", 
+                            Merzouga = "MER",
+                            Ziz.Valley = "ZIZ", 
+                            Ziz.Valley.dunes = "ZIZ DUNE"))
+
+# Drop sample 25 from Hassilabiad as it was lost
+df.spatial <- gps[-69,] %>%
+  filter(group == "Hassilabiad" | 
+           group == "Merzouga") %>%
+  cbind(., EM.rob$scores) %>%
+  rename(location = group, 
+         EM1 = V1, 
+         EM2 = V2, 
+         EM3 = V3, 
+         EM4 = V4)
+
+# Transform to clr values
+df.clr <- df.spatial %>%
+  select(EM1:EM4) %>%
+  clr(acomp(.)) %>%
+  data.frame() %>%
+  rename(clrEM1 = EM1, 
+         clrEM2 = EM2, 
+         clrEM3 = EM3, 
+         clrEM4 = EM4) %>%
+  bind_cols(., df.spatial) 
+
+# Filter clr values == 0
+df.clr.2 <- df.clr %>%
+  gather(clrEMs, clr, clrEM1:clrEM4) %>%
+  filter(!clr == 0)
+
+# Create data frame for Hassilabiad
+df.clr.2.has <- df.clr.2 %>%
+  filter(location == "Hassilabiad")
+
+# Create data frame for Merzouga
+df.clr.2.mer <- df.clr.2 %>%
+  filter(location == "Merzouga")
+
+# Figure 7a
+a <- ggplot() +
+  geom_polygon(data = has_border2, 
+               aes(x = long, 
+                   y = lat, 
+                   group = group), 
+               fill = "darkgreen", 
+               alpha = 0.3) +
+  geom_point(data = df.clr.2.has, 
+             aes(x = lon, 
+                 y = lat, 
+                 color = clr), 
+             size = 4) +
+  scale_size_continuous(guide = FALSE) +
+  scale_colour_gradient2(low = "black",
+                         high = "red", 
+                         mid = "white") +
+  scale_x_continuous(breaks = c(-4.022, -4.018)) +
+  facet_wrap(~clrEMs) +
+  theme_bw() +
+  theme(aspect.ratio = 1.5, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(x = "Longitude", 
+       y = "Latitude")
+
+# Figure 7b
+b <- ggplot() +
+  geom_polygon(data = mer_border2, 
+               aes(x = long, 
+                   y = lat, 
+                   group = group), 
+               fill = "darkgreen", 
+               alpha = 0.3) +
+  geom_point(data = df.clr.2.mer, 
+             aes(x = lon, 
+                 y = lat, 
+                 color = clr), 
+             size = 4) +
+  scale_size_continuous(guide = FALSE) +
+  scale_colour_gradient2(low = "black",
+                         high = "red", 
+                         mid = "white") +
+  scale_x_continuous(breaks = pretty_breaks(n = 2)) +
+  facet_wrap(~clrEMs) +
+  theme_bw() +
+  theme(aspect.ratio = 1.5, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(x = "Longitude", 
+       y = "Latitude")
+
+plot_grid(a, b, ncol = 2, 
+          labels = "auto", 
+          vjust = 4)
+```
+
+\newpage
+
+# Supplementary Information
+
+## Study area
+Erg Chebbi is a dune field extending over c. 110 km$^2$ in the Tafilalt/Taouz region, South-East Morocco (Figure 1) ($31.13^\circ$ lat, $-4.02^\circ$ lon). It consists of 14 major pyramidal-shaped, star dunes up to 150 m in height with slopes up to 60\% and with several major dune arms, summits and avalanche faces. @Garcia-Rodriguez2014 suggested that it formed after wind-blown sand grains piled up in ground depression traps due to the accumulation of water and moisture from Lake Yasmina to the north. Although wind dynamics are still poorly understood, data from Rissani indicates a bimodal regime with the main nodes being NE and SW [@Biejat2012].  The climate in the region is arid, with yearly evaporation and precipitation rates above 2500 mm and between 30-140 mm respectively, the latter concentrating in autumn and winter. Daily temperature averages 20 degrees celsius but can be as high as 50 degrees celsius above sand [@Alali2013b]. 
+
+The erg stores a moderate amount of groundwater tapped by local communities by means of *khettara*, e.g. subterranean tunnels with vertical shafts for aeration and maintenance that channel groundwater to the surface for irrigation [@Lightfoot1996a; @Garcia-Rodriguez2014]. *Khettara* direct the water to the Hassilabiad (16 ha) and the Merzouga (21 ha) oasis, located at the western edge of the erg. The oases were constructed by nomads of the Tafilalt region after being forced to settle down due to the onset of the war between Morocco and Argelia, giving birth to the villages of Hassilabiad (c. 2130 inhabitants) and Merzouga (c. 2349 inhabitants)  [@EscricheBueno2013]. Local water management institutions formed by elders of different tribes and clans decide on water allocation rules and act as a water council to settle disputes among irrigators. Crops grown in the oases include wheat, barley, onions, turnips, carrots, potatoes, beans, peas and dates, mostly for self-subsistence. In order to protect the crops, the plots and the hydraulic network of the Hassilabiad oasis from sand encroachment, checkerboards and a mud wall stretch along the westernmost and easternmost fringes of the oasis respectively. No sand-protection infrastructures exist in the Merzouga oasis, which is partially flanked to the E and W by the village of Merzouga (Figure 1).
+
+\newpage
+
+# Tables
+
+## Table S1
+
+```{r tables1, dev="tikz", cache=TRUE}
+Table.S1 <- df$pids %>%
+  filter(!location == "Hammada.Fluvial") %>%
+  group_by(location) %>%
+  summarise(Mean = mean(pids), 
+            Sd = sd(pids)) 
+
+kable(Table.S1, 
+      format = "latex", 
+      booktabs = TRUE, 
+      digits = 1, 
+      escape = FALSE,
+      col.names = c("Location", "$\\mu$", "$\\sigma$"), 
+      caption = "PIDS values") %>%
+  kable_styling(position = "center", 
+                latex_options = "hold_position")
+```
+
+## Table S2
+
+```{r tables2, dev="tikz", cache=TRUE}
+Table.S2 <- data.frame(Ilr = c("Ilr1", "Ilr2", "Ilr3", 
+                               "Ilr4", "Ilr5", "Ilr6", "Ilr7"),
+                       fsand = c(1, -1, 0, 0, 0, 0, 0), 
+                       vfsand = c(1, 1, 1, 0, 0, 0, 0), 
+                       vcsilt = c(1, 1, -1, 0, 0, 0, 0), 
+                       csilt = c(-1, 0, 0, 1, 1, 1, 0), 
+                       msilt = c(-1, 0, 0, 1, 1, -1, 0), 
+                       fsilt = c(-1, 0, 0, 1, -1, 0, 0), 
+                       vfsilt = c(-1, 0, 0, -1, 0, 0, 1), 
+                       clay = c(-1, 0, 0, -1, 0, 0, -1), 
+                       "$n+$" = c(3, 2, 1, 3, 2, 1, 1), 
+                       "$n-$" = c(5, 1, 1, 2, 1, 1, 1))
+
+kable(Table.S2, 
+      format = "latex", 
+      booktabs = TRUE, 
+      escape = FALSE, 
+      col.names = c("Ilr", "fsand", "vfsand", "vcsilt", "csilt", "msilt",
+                    "fsilt", "vfsilt", "clay", "$n+$", "$n-$"),
+      caption = "SBP used to ilr transform the PSD data collected in the Hassilabiad and Merzouga oases.") %>%
+  kable_styling(position = "center")
+```
+
+
+\newpage
+# Figures
+
+## Figure S1
+
+```{r figs1,dev="tikz", fig.cap="Histograms of wind speed. The data shows the distribution of wind speed values between 2002-2011 faceted by month.", cache=TRUE}
+
+# Plot figure
+df.wind %>%
+  ggplot(., aes(speed)) +
+  geom_histogram() +
+  facet_wrap(~Month) +
+  labs(x = "Wind speed (m/s)", 
+       y = "Counts") +
+  theme_bw() +
+  theme(aspect.ratio = 1, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+
+```
+
+## Figure S2
+
+```{r bayesian, cache=TRUE}
+# Pull vector of ilr values for Hassilabiad
+y1 <- df$ilr %>%
+  filter(location == "Hassilabiad") %>%
+  pull(ilr.1)
+
+# Pull vector of ilr values for Merzouga
+y2 <- df$ilr %>%
+  filter(location == "Merzouga") %>%
+  pull(ilr.1)
+
+# Run Bayesian t-test
+BESTout <- BESTmcmc(y1, y2, 
+                    numSavedSteps = 10^6,
+                    parallel = TRUE)
+
+```
+
+
+```{r dev="tikz", sanitize=TRUE, fig.cap="Results of the Bayesian *t*-test on *ilr* variables from Hassilabiad (Group 1) and Merzouga (Group 2). We used the *BEST* package [@Kruschke2017] and the vague priors defined in @Kruschke2013a due to lack of previously available data. We ran $10^6$ simulations with all values displaying a Brooks-Gelman-Rubin scale reduction factor of 1 and an effective sample size $>30.000", dependson="bayesian", fig.width=6, fig.height=8, cache=TRUE}
+
+plotAll(BESTout)
+```
+
+## Graphical Abstract
+
+```{r graphical_abstract, dev="tikz", sanitize=TRUE, fig.height=3.8, fig.width= 5.8, cache=TRUE}
+a <- EMs2 %>%
+  filter(Group == "Hassilabiad" |
+           Group == "Merzouga") %>%
+  ggplot(., aes(channel.d, Value, 
+                group = Sample)) +
+  geom_line() +
+  annotate("text", 
+           x = 1.5, 
+           y = 7.5, 
+           label ="Grain size distribution") +
+  scale_x_log10(breaks = c(1, 10, 100, 1000)) +
+  labs(x = "Grain size (microns)", 
+       y = "%") +
+  theme_bw() +
+  theme(aspect.ratio = 1/2.5, 
+        plot.margin = unit(c(0, 0, -1.3, 0), "cm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = c(0.05, 0.9),
+        legend.justification = c(0.05, 0.9),
+        plot.title = element_text(size = 16, face = "bold"))
+
+b <- EMs2 %>%
+  filter(!Group == "Hassilabiad") %>%
+  filter(!Group == "Merzouga") %>%
+  droplevels() %>%
+  ggplot(., aes(channel.d, Value, 
+                color = EMs, 
+                group = Sample)) +
+  geom_line(aes(size = Group, 
+                alpha = EMs)) +
+  annotate("text", 
+           x = 0.8, 
+           y = 6, 
+           label ="End-Members (EMs)") +
+  scale_x_log10(breaks = c(1, 10, 100, 1000)) +
+  scale_alpha_manual(values = c(1, 1, 1, 1, 1), 
+                     guide = FALSE) +
+  scale_colour_manual(name = "End Members (EMs)", 
+                      labels = c("EM 1", "EM 2",
+                                 "EM 3", "EM 4"), 
+                      breaks = c("EM1", "EM2", "EM3", "EM4"),
+                      values = c("chocolate4", "chocolate1", 
+                                 "burlywood1", "gold3"), 
+                      guide = FALSE) +
+  scale_size_manual(values = c(2, 0.5, 0.5, 0.5, 0.5), 
+                    breaks = c("EM1", "EM2", 
+                               "EM3", "EM4", "NO"), 
+                    guide = FALSE) +
+  labs(x = "Grain size (microns)", 
+       y = "%") +
+  theme_bw() +
+  theme(aspect.ratio = 1/2.5, 
+        plot.margin = unit(c(-1, 0, 0, 0), "cm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.position = c(0.05, 0.9),
+        legend.justification = c(0.05, 0.9),
+        plot.title = element_text(size = 16, face = "bold"))
+
+
+c <- plot_grid(a, b, ncol = 1)
+
+
+d <- ggplot() +
+  geom_polygon(data = mer_border2, 
+               aes(x = long, 
+                   y = lat, 
+                   group = group), 
+               fill = "darkgreen", 
+               alpha = 0.3) +
+  geom_point(data = df.clr.2.mer %>%
+               select(lon, lat, location, id, EM3, clrEMs, clr) %>%
+               filter(clrEMs == "clrEM3") %>%
+               droplevels(), 
+             aes(x = lon, 
+                 y = lat, 
+                 color = clr), 
+             size = 6) +
+      annotate("text", 
+           x = -4.0115, 
+           y = 31.104, 
+           label ="Spatial patterns") +
+  scale_size_continuous(guide = FALSE) +
+  scale_colour_gradient2(low = "black",
+                         high = "red", 
+                         mid = "white", 
+                         name = "clrEM3") +
+  scale_x_continuous(breaks = pretty_breaks(n = 2)) +
+  theme_bw() +
+  theme(aspect.ratio = 1.5, 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()) +
+  labs(x = "Longitude", 
+       y = "Latitude")
+
+plot_grid(c, d, ncol = 2)
+```
+
+\newpage
+# References
+

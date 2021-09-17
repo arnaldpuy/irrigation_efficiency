@@ -1,0 +1,19 @@
+# Ignore everything -----
+/*
+
+# But not these files...
+!code_irrigation_efficiency.pdf
+!code_irrigation_efficiency.R
+!code_irrigation_efficiency.Rmd
+!README.md
+
+# datasets
+!rohwer_data_all.csv
+!bos_data.csv
+!solley_data.csv
+!fao_1997.csv
+!ranges_efficiencies.csv
+!efficiency_10.csv
+!efficiency_30.csv
+!efficiency_100.csv
+!.Rproj.user
