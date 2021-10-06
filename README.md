@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5513924.svg)](https://doi.org/10.5281/zenodo.5513924)
 
-# Global irrigation water demands biased by unreliable irrigation efficiencies
+# Unreliable irrigation efficiencies concealed in global irrigation water demands
 
 Arnald Puy, Bruce Lankford, Jonas Meier, Saskia van der Kooij and Andrea Saltelli 
 
