@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5513924.svg)](https://doi.org/10.5281/zenodo.5513924)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5551973.svg)](https://doi.org/10.5281/zenodo.5551973)
 
 # Unreliable irrigation efficiencies concealed in global irrigation water demands
 
