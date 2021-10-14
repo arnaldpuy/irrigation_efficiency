@@ -143,9 +143,11 @@ bos2 <- setnames(bos2, c("E_a", "E_c", "E_d"), c("E[a]", "E[c]", "E[d]"))
 a <- bos2 %>%
   melt(., measure.vars = c("E[a]", "E[c]")) %>%
   ggplot(., aes(value, fill = Irrigation, color = Irrigation)) +
-  geom_histogram(position = "identity", alpha = 0.4, bins = 15) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 15) +
   facet_wrap(~variable, labeller = label_parsed) +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  scale_fill_manual(values = c("#D16103", "#C3D7A4")) +
+  scale_color_manual(values = c("#D16103", "#C3D7A4")) +
   geom_vline(data = bos.rohwer.all, aes(xintercept = Value,
                                         color = Irrigation,
                                         group = variable),
@@ -629,13 +631,15 @@ ggplot(calc, aes(range)) +
 
 # COMPARE RANGES -----------------------------------------------------------------
 
-ranges_empirical <- uncertainty.dt[, .(higher = max(V1), lower = min(V1)), IFT] %>%
-  .[, Study:= "This study"]%>%
-  .[!IFT == "Jager"]
+ranges_efficiencies <- fread("ranges_efficiencies.csv") %>%
+  melt(., measure.vars = c("higher", "lower"), value.name = "V1") %>%
+  .[, variable:= NULL]
 
-ranges_efficiencies <- fread("ranges_efficiencies.csv")
+ranges_empirical <- uncertainty.dt[, Study:= "This study"]%>%
+  .[!IFT == "Jager"] %>%
+  .[, .(IFT, Study, V1)]
 
-rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2] %>%
+rbind(ranges_empirical, ranges_efficiencies) %>%
   .[, Study:= factor(Study, levels = c("This study",
                                        "Brouwer et al. 1989",
                                        "Rogers et al. 1997",
@@ -643,10 +647,9 @@ rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2
                                        "Rohwer et al. 2007",
                                        "Van Halsema and Vincent 2012"))] %>%
   na.omit() %>%
-  ggplot(., aes(mean.value, Study, color = ifelse(Study == "This study", "red", "black"))) +
-  geom_point() +
+  ggplot(., aes(V1, Study, color = ifelse(Study == "This study", "red", "black"))) +
+  geom_boxplot(outlier.size = 1) +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
-  geom_errorbar(aes(xmin = lower, xmax = higher)) +
   scale_color_identity() +
   facet_wrap(~IFT, ncol = 4) +
   labs(x = "Irrigation efficiency", y = "") +

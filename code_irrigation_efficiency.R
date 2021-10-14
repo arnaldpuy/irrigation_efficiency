@@ -1,8 +1,8 @@
-## ----setup, include=FALSE------------------------------------------------------
+## ----setup, include=FALSE-----------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE, dev = "tikz")
 
 
-## ----packages, results="hide", message=FALSE, warning=FALSE--------------------
+## ----packages, results="hide", message=FALSE, warning=FALSE-------------------------
 
 # Function to read in all required packages in one go:
 loadPackages <- function(x) {
@@ -44,7 +44,7 @@ checkpoint("2021-08-02",
            checkpointLocation = getwd())
 
 
-## ----datasets, cache=TRUE------------------------------------------------------
+## ----datasets, cache=TRUE-----------------------------------------------------------
 
 # READ IN DATA -------------------------------------------------------------------
 
@@ -93,7 +93,7 @@ bos.rohwer.mf.ed <- data.table("Scale" = c("<10.000 ha", ">10.000 ha"),
 bos.rohwer.mf.all <- rbind(bos.rohwer.mf.ec, bos.rohwer.mf.ed)
 
 
-## ----plot_rohwer, cache=TRUE, dependson="datasets"-----------------------------
+## ----plot_rohwer, cache=TRUE, dependson="datasets"----------------------------------
 
 # PLOT ---------------------------------------------------------------------------
 
@@ -105,9 +105,11 @@ bos2 <- setnames(bos2, c("E_a", "E_c", "E_d"), c("E[a]", "E[c]", "E[d]"))
 a <- bos2 %>%
   melt(., measure.vars = c("E[a]", "E[c]")) %>%
   ggplot(., aes(value, fill = Irrigation, color = Irrigation)) +
-  geom_histogram(position = "identity", alpha = 0.4, bins = 15) +
+  geom_histogram(position = "identity", alpha = 0.6, bins = 15) +
   facet_wrap(~variable, labeller = label_parsed) +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
+  scale_fill_manual(values = c("#D16103", "#C3D7A4")) +
+  scale_color_manual(values = c("#D16103", "#C3D7A4")) +
   geom_vline(data = bos.rohwer.all, aes(xintercept = Value,
                                         color = Irrigation,
                                         group = variable),
@@ -142,7 +144,7 @@ bottom <- plot_grid(a, b, ncol = 1, labels = c("c", "d"))
 bottom
 
 
-## ----plot_usa_africa, cache=TRUE, dependson="datasets", fig.width=3.5----------
+## ----plot_usa_africa, cache=TRUE, dependson="datasets", fig.width=3.5---------------
 
 # PLOT USA AND AFRICA ------------------------------------------------------------
 
@@ -170,7 +172,7 @@ top
 plot_grid(top, bottom, ncol = 1, rel_heights = c(0.3, 0.7))
 
 
-## ----matrix_fun, cache=TRUE----------------------------------------------------
+## ----matrix_fun, cache=TRUE---------------------------------------------------------
 
 # CREATE FUNCTION TO DESIGN SAMPLE MATRIX ---------------------------------------
 
@@ -197,7 +199,7 @@ sample_matrix_fun <- function(IFT) {
 }
 
 
-## ----truncated_distr, cache=TRUE-----------------------------------------------
+## ----truncated_distr, cache=TRUE----------------------------------------------------
 
 # DEFINE TRUNCATED DISTRIBUTIONS ------------------------------------------------
 
@@ -245,7 +247,7 @@ beta_dist.m <- sapply(c(minimum.m, maximum.m), function(x)
 
 
 
-## ----distributions_func, cache=TRUE--------------------------------------------
+## ----distributions_func, cache=TRUE-------------------------------------------------
 
 # FUNCTION TO TRANSFORM TO APPROPRIATE DISTRIBUTIONS ----------------------------
 
@@ -311,7 +313,7 @@ distributions_fun <- list(
 )
 
 
-## ----unc_large_fraction, cache=TRUE, dependson="datasets"----------------------
+## ----unc_large_fraction, cache=TRUE, dependson="datasets"---------------------------
 
 # DEFINE THE UNCERTAINTY IN THE LARGE FRACTION AT THE COUNTRY LEVEL -------------
 
@@ -439,7 +441,7 @@ full_model <- function(IFT, Country, sample.size, R) {
 }
 
 
-## ----settings, cache=TRUE------------------------------------------------------
+## ----settings, cache=TRUE-----------------------------------------------------------
 
 # DEFINE SETTINGS ----------------------------------------------------------------
 
@@ -466,7 +468,7 @@ for(j in 1:length(all.dt)) {
 }
 
 
-## ----extract_output, cache=TRUE, dependson="run_model"-------------------------
+## ----extract_output, cache=TRUE, dependson="run_model"------------------------------
 
 # EXTRACT MODEL OUTPUT -----------------------------------------------------------
 
@@ -510,7 +512,7 @@ uncertainty.dt <- uncertainty.dt[, Study:= ifelse(IFT == "Jager",
                                                   "Rohwer et al. approach")]
 
 
-## ----export_uncertainty, cache=TRUE, dependson="extract_output"----------------
+## ----export_uncertainty, cache=TRUE, dependson="extract_output"---------------------
 
 # EXPORT UNCERTAINTY IN IRRIGATION EFFICIENCY ------------------------------------
 
@@ -567,13 +569,15 @@ ggplot(calc, aes(range)) +
 
 # COMPARE RANGES -----------------------------------------------------------------
 
-ranges_empirical <- uncertainty.dt[, .(higher = max(V1), lower = min(V1)), IFT] %>%
-  .[, Study:= "This study"]%>%
-  .[!IFT == "Jager"]
+ranges_efficiencies <- fread("ranges_efficiencies.csv") %>%
+  melt(., measure.vars = c("higher", "lower"), value.name = "V1") %>%
+  .[, variable:= NULL]
 
-ranges_efficiencies <- fread("ranges_efficiencies.csv")
+ranges_empirical <- uncertainty.dt[, Study:= "This study"]%>%
+  .[!IFT == "Jager"] %>%
+  .[, .(IFT, Study, V1)]
 
-rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2] %>%
+rbind(ranges_empirical, ranges_efficiencies) %>%
   .[, Study:= factor(Study, levels = c("This study",
                                        "Brouwer et al. 1989",
                                        "Rogers et al. 1997",
@@ -581,10 +585,9 @@ rbind(ranges_empirical, ranges_efficiencies)[, mean.value:= (higher + lower) / 2
                                        "Rohwer et al. 2007",
                                        "Van Halsema and Vincent 2012"))] %>%
   na.omit() %>%
-  ggplot(., aes(mean.value, Study, color = ifelse(Study == "This study", "red", "black"))) +
-  geom_point() +
+  ggplot(., aes(V1, Study, color = ifelse(Study == "This study", "red", "black"))) +
+  geom_boxplot(outlier.size = 1) +
   scale_x_continuous(breaks = pretty_breaks(n = 3)) +
-  geom_errorbar(aes(xmin = lower, xmax = higher)) +
   scale_color_identity() +
   facet_wrap(~IFT, ncol = 4) +
   labs(x = "Irrigation efficiency", y = "") +
@@ -655,7 +658,7 @@ ggplot(ff, aes(Continent, V1)) +
   labs(y = "Fraction of overlap", x = "")
 
 
-## ----correspondence_ift, cache=TRUE, dependson="check_overlap"-----------------
+## ----correspondence_ift, cache=TRUE, dependson="check_overlap"----------------------
 
 # CHECK CORRESPONDENCE BETWEEN SHARES OF IFT AND PREDOMINANT TECHNOLOGY ----------
 
@@ -665,7 +668,7 @@ merge(jager, rohwer, by = c("Country")) %>%
   .[, .(Country, Surface_fraction, Sprinkler_fraction, Drip_fraction, IFT)]
 
 
-## ----unc_analysis, cache=TRUE, dependson="extract_output"----------------------
+## ----unc_analysis, cache=TRUE, dependson="extract_output"---------------------------
 
 # PLOT UNCERTAINTY ---------------------------------------------------------------
 
@@ -772,7 +775,7 @@ factor_unc %>%
   print()
 
 
-## ----functions_isimip, cache=TRUE----------------------------------------------
+## ----functions_isimip, cache=TRUE---------------------------------------------------
 
 # FUNCTIONS TO EXTRACT DATA FROM .NC FILES ---------------------------------------
 
@@ -828,7 +831,7 @@ open_nc_files <- function(file, dname, selected.years, vec) {
 }
 
 
-## ----read_nc, cache=TRUE, dependson="functions_isimip"-------------------------
+## ----read_nc, cache=TRUE, dependson="functions_isimip"------------------------------
 
 # READ IN NC FILES ---------------------------------------------------------------
 
@@ -851,7 +854,7 @@ isimip.dt <- mclapply(files, function(x)
   mc.cores = detectCores() * 0.75)
 
 
-## ----corrective_lpjml, cache=TRUE----------------------------------------------
+## ----corrective_lpjml, cache=TRUE---------------------------------------------------
 
 # EXTRACT CORRECTIVE COEFFICIENTS FOR IRRIGATION EFFICIENCY FOR LPJML ------------
 
@@ -870,7 +873,7 @@ lpjml_efficiencies <- cbind(Country, da) %>%
   .[, .(Ep = mean(V3)), Country]
 
 
-## ----arrange_nc, cache=TRUE, dependson=c("read_nc", "corrective_lpjml")--------
+## ----arrange_nc, cache=TRUE, dependson=c("read_nc", "corrective_lpjml")-------------
 
 # ARRANGE NC FILES ---------------------------------------------------------------
 
@@ -915,7 +918,7 @@ isimip.dt.unc.efficiencies <- merge(efficiency.dt, isimip.dt,
   .[, Approach:= "GMs + uncertainty in irrigation efficiency"]
 
 
-## ----climate_uncertainties, cache=TRUE-----------------------------------------
+## ----climate_uncertainties, cache=TRUE----------------------------------------------
 
 # READ IN FILES ON CLIMATE CHANGE UNCERTAINTY (2050) -----------------------------
 
@@ -1122,7 +1125,7 @@ melt(mat[, 1:8], measure.vars = colnames(mat)[-c(9,10)]) %>%
   theme_AP()
 
 
-## ----extract_sobol, cache=TRUE, dependson=c("run_model", "extract_output")-----
+## ----extract_sobol, cache=TRUE, dependson=c("run_model", "extract_output")----------
 
 # EXTRACT SOBOL' INDICES ---------------------------------------------------------
 
@@ -1214,7 +1217,7 @@ lapply(Continent_vector, function(x)
 )
 
 
-## ----jager_merged, cache=TRUE, dependson="extract_jager_indices", dev = "pdf"----
+## ----jager_merged, cache=TRUE, dependson="extract_jager_indices", dev = "pdf"-------
 
 # JAGER INDICES MERGED ----------------------------------------------------------
 
@@ -1251,7 +1254,7 @@ ggdraw(add_sub(final, "Sobol' indices", vpadding = grid::unit(0,"lines"),
 
 
 
-## ----system--------------------------------------------------------------------
+## ----system-------------------------------------------------------------------------
 
 # SESSION INFORMATION -----------------------------------------------------------
 
