@@ -1,6 +1,6 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5551973.svg)](https://doi.org/10.5281/zenodo.5551973)
 
-# Large variations in global irrigation water withdrawals caused by uncertain irrigation efficiencies
+# Large variations in global irrigation withdrawals caused by uncertain irrigation efficiencies
 
 Arnald Puy, Bruce Lankford, Jonas Meier, Saskia van der Kooij and Andrea Saltelli 
 
